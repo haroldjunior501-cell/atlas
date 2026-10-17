@@ -1,0 +1,43 @@
+{
+  "expo": {
+    "name": "ATLAS",
+    "slug": "atlas",
+    "scheme": "atlas",
+    "orientation": "portrait",
+    "userInterfaceStyle": "dark",
+    "plugins": [
+      "expo-router",
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Atlas lit une photo, une capture ou un scan.",
+          "cameraPermission": "Atlas photographie un document pour l’analyser."
+        }
+      ],
+      [
+        "expo-audio",
+        { "microphonePermission": "Atlas transcrit ce que tu dictes." }
+      ],
+      "expo-document-picker",
+      "expo-notifications"
+    ],
+    "ios": {
+      "infoPlist": {
+        "NSCameraUsageDescription": "Atlas photographie un document pour l’analyser.",
+        "NSMicrophoneUsageDescription": "Atlas transcrit ce que tu dictes.",
+        "NSPhotoLibraryUsageDescription": "Atlas lit une photo, une capture ou un scan."
+      }
+    },
+    "android": {
+      "permissions": [
+        "CAMERA",
+        "RECORD_AUDIO",
+        "READ_EXTERNAL_STORAGE",
+        "READ_MEDIA_IMAGES"
+      ]
+    },
+    "experiments": {
+      "typedRoutes": false
+    }
+  }
+}

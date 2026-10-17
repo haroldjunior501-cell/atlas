@@ -1,0 +1,250 @@
+.page {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  background:
+    radial-gradient(720px 320px at 50% 18%, rgba(255, 96, 40, 0.14), transparent 70%),
+    #221c30;
+  color: #f3eef6;
+}
+
+.stage {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: min(760px, calc(100% - 32px));
+  margin: 2vh auto 0;
+  text-align: center;
+}
+
+.stage h1 {
+  margin: 0;
+  color: #fff;
+  font-size: clamp(34px, 4vw, 48px);
+  font-weight: 500;
+  letter-spacing: -0.04em;
+}
+
+.start {
+  min-width: min(360px, 100%);
+  height: 52px;
+  margin: 22px 0 0;
+  padding: 0 28px;
+  border: 0;
+  border-radius: 12px;
+  background-image: linear-gradient(90deg, #fd8925, #ff3b1f 55%, #ff0c00);
+  color: #fff;
+  font: inherit;
+  font-size: 16px;
+  font-weight: 500;
+  cursor: pointer;
+  box-shadow: 0 10px 30px rgba(255, 60, 20, 0.28);
+}
+
+.discover {
+  margin: 16px 0 0;
+  padding: 8px 14px;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.04);
+  color: #ddd6e6;
+  font-size: 12px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.caption {
+  max-width: 52ch;
+  margin: 14px 0 0;
+  color: #b7b0c4;
+  font-size: 14px;
+  line-height: 1.45;
+}
+
+.chat {
+  width: min(640px, 100%);
+  margin-top: 22px;
+  padding: 16px 16px 14px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 16px;
+  background: rgba(38, 32, 54, 0.92);
+  text-align: left;
+  box-shadow: 0 18px 50px rgba(0, 0, 0, 0.22);
+}
+
+.chat header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: #fff;
+  font-size: 14px;
+}
+
+.spark { color: #fd8925; }
+
+.thread {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-height: 92px;
+  margin: 16px 0;
+}
+
+.user {
+  align-self: flex-end;
+  max-width: 78%;
+  margin: 0;
+  padding: 10px 14px;
+  border-radius: 14px 14px 4px 14px;
+  background: #3a334c;
+  color: #fff;
+  font-size: 14px;
+  line-height: 1.4;
+}
+
+.reply {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  max-width: 88%;
+  margin: 0;
+  color: #efeaf4;
+  font-size: 14px;
+  line-height: 1.45;
+}
+
+.composer {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 48px;
+  padding: 0 8px 0 14px;
+  border-radius: 12px;
+  background: #1b1626;
+  color: #fff;
+  font-size: 14px;
+}
+
+.composer span { min-width: 0; }
+
+.composer em {
+  color: #8d8698;
+  font-style: normal;
+}
+
+.caret {
+  width: 1px;
+  height: 16px;
+  background: #fd8925;
+  animation: blink 1s steps(1) infinite;
+}
+
+.composer button {
+  margin-left: auto;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border: 0;
+  border-radius: 999px;
+  background: #3a334c;
+  color: #fff;
+  font-size: 16px;
+  cursor: default;
+}
+
+.floor {
+  width: 100%;
+  margin-top: 28px;
+  padding: 28px 0 8px;
+  background-image: radial-gradient(rgba(255, 255, 255, 0.16) 1px, transparent 1px);
+  background-size: 16px 16px;
+}
+
+.rail {
+  position: relative;
+  display: flex;
+  justify-content: center;
+  gap: 22px;
+  width: min(760px, 100%);
+  margin: 0 auto;
+}
+
+.line {
+  position: absolute;
+  top: 22px;
+  left: 6%;
+  width: 88%;
+  height: 2px;
+  background: linear-gradient(90deg, transparent, rgba(253, 137, 37, 0.85), transparent);
+  transform-origin: left center;
+  transition: transform 0.35s ease;
+}
+
+.node,
+.nodeOn {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 84px;
+  opacity: 0.28;
+  transform: translateY(8px);
+  transition: opacity 0.35s ease, transform 0.35s ease;
+}
+
+.nodeOn {
+  opacity: 1;
+  transform: none;
+}
+
+.node img,
+.nodeOn img,
+.atlasNode,
+.ceoNode {
+  width: 44px;
+  height: 44px;
+  border-radius: 999px;
+  object-fit: cover;
+  object-position: center 18%;
+  background: #2c2638;
+  border: 2px solid rgba(255, 255, 255, 0.16);
+}
+
+.atlasNode,
+.ceoNode {
+  display: grid;
+  place-items: center;
+}
+
+.atlasNode :global(svg) { width: 22px; height: 22px; }
+
+.ceoNode {
+  color: #fff;
+  font-size: 11px;
+  letter-spacing: 0.06em;
+}
+
+.node strong,
+.nodeOn strong {
+  margin-top: 8px;
+  color: #fff;
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.node small,
+.nodeOn small {
+  color: #b7b0c4;
+  font-size: 11px;
+}
+
+@keyframes blink {
+  50% { opacity: 0; }
+}
+
+@media (max-width: 720px) {
+  .rail { gap: 8px; }
+  .node, .nodeOn { width: 64px; }
+  .node strong, .nodeOn strong { font-size: 11px; }
+}

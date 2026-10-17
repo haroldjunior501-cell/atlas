@@ -1,0 +1,16 @@
+#cloud-config
+users:
+  - name: atlas
+    groups: [sudo]
+    sudo: ALL=(ALL) NOPASSWD:ALL
+    shell: /bin/bash
+    ssh_authorized_keys:
+      - ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIIlishR1oKiFo5eVSoh2esHlL5iIx7/+Gv0qU4sfe2tq ton-email@exemple.com
+package_update: true
+packages:
+  - git
+  - ffmpeg
+  - curl
+  - ca-certificates
+runcmd:
+  - nvidia-smi || true

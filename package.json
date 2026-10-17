@@ -1,0 +1,36 @@
+{
+  "name": "atlas",
+  "private": true,
+  "version": "0.1.0",
+  "description": "ATLAS — The AI Operating System for Organizations",
+  "workspaces": [
+    "packages/*",
+    "services/*",
+    "connectors",
+    "apps/*"
+  ],
+  "scripts": {
+    "dev:web": "npm run dev --workspace @atlas/web",
+    "dev:mobile": "npm run start --workspace @atlas/mobile",
+    "dev:gateway": "npm run dev --workspace @atlas/gateway",
+    "dev:ace": "docker compose --env-file .env -f services/ace/docker-compose.yml up --build",
+    "companion": "powershell -ExecutionPolicy Bypass -File tools/atlas-companion/Start-AtlasCompanion.ps1",
+    "typecheck": "npm run typecheck --workspaces --if-present",
+    "test": "tsx --test services/orchestrator/src/permissions.test.ts services/orchestrator/src/snapshot.test.ts services/gateway/src/state-store.test.ts services/gateway/src/postgres-state.test.ts services/orchestrator/src/nvidia.test.ts services/orchestrator/src/jarvis.test.ts services/orchestrator/src/builder.test.ts services/orchestrator/src/memory-ask.test.ts services/orchestrator/src/task-flow.test.ts services/voice/src/visemes.test.ts packages/domain/src/office-layout.test.ts packages/domain/src/crew.test.ts packages/domain/src/ztc-hosting.test.ts"
+  },
+  "devDependencies": {
+    "tsx": "^4.20.5",
+    "typescript": "~5.9.3"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "expo-constants": "~57.0.21",
+    "expo-linking": "~57.0.12",
+    "expo-router": "~57.0.25",
+    "expo-status-bar": "~57.0.1",
+    "react-native-safe-area-context": "~5.7.0",
+    "react-native-screens": "~4.26.0"
+  }
+}

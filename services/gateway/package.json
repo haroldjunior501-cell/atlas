@@ -1,0 +1,25 @@
+{
+  "name": "@atlas/gateway",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "tsx src/main.ts",
+    "start": "tsx src/main.ts",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@atlas/connect": "*",
+    "@atlas/contracts": "*",
+    "@atlas/domain": "*",
+    "@atlas/orchestrator": "*",
+    "@atlas/voice": "*",
+    "@azure/storage-blob": "^12.28.0",
+    "pg": "^8.23.0"
+  },
+  "devDependencies": {
+    "@electric-sql/pglite": "^0.3.16",
+    "@types/node": "^24.5.2",
+    "@types/pg": "^8.23.1"
+  }
+}

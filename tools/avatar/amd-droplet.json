@@ -1,0 +1,13 @@
+{
+  "name": "atlas-mi300x-gsplat",
+  "region": "atl1",
+  "size": "gpu-mi300x1-192gb-devcloud",
+  "image": "amddevelopercloud-vllm0271vllmomni0270rc1rocm714",
+  "ssh_keys": ["REPLACE_WITH_YOUR_SSH_KEY_FINGERPRINT_OR_ID"],
+  "backups": false,
+  "ipv6": false,
+  "monitoring": false,
+  "tags": ["atlas", "gsplat"],
+  "user_data": "",
+  "vpc_uuid": ""
+}

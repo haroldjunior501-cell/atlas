@@ -1,0 +1,12 @@
+node_modules
+.next
+dist
+.expo
+.turbo
+*.tsbuildinfo
+.env
+.env.local
+data/
+*.gguf
+npm-debug.log*
+.DS_Store

@@ -1,0 +1,445 @@
+.wrap {
+  --accent: #4f46e5;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 340px;
+  grid-template-areas:
+    'cards atlas'
+    'panel atlas';
+  grid-template-rows: auto 1fr;
+  gap: 12px;
+  color: #0f172a;
+  font-size: 13px;
+}
+
+.cards {
+  grid-area: cards;
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.cards div {
+  display: grid;
+  gap: 2px;
+  padding: 12px 14px;
+  border: 1px solid #e5e7eb;
+  border-radius: 14px;
+  background: #fff;
+}
+
+.cards span {
+  color: #64748b;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.cards strong {
+  font-size: 19px;
+  font-variant-numeric: tabular-nums;
+}
+
+.cards small {
+  color: #94a3b8;
+  font-size: 11px;
+}
+
+.cards .good strong { color: #15803d; }
+.cards .bad { border-color: #fecaca; background: #fef2f2; }
+.cards .bad strong { color: #b91c1c; }
+
+/* ---- ATLAS */
+.atlas {
+  grid-area: atlas;
+  align-self: start;
+  position: sticky;
+  top: 12px;
+  padding: 14px;
+  border: 1px solid color-mix(in srgb, var(--accent) 30%, #e5e7eb);
+  border-radius: 16px;
+  background: linear-gradient(180deg, color-mix(in srgb, var(--accent) 7%, white), #fff 50%);
+}
+
+.atlasHead {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+
+.atlasHead div {
+  display: grid;
+  gap: 2px;
+}
+
+.atlasHead small {
+  color: #475569;
+  font-size: 11px;
+  line-height: 1.35;
+}
+
+.atlasMark {
+  display: grid;
+  flex: 0 0 auto;
+  width: 30px;
+  height: 30px;
+  place-items: center;
+  border-radius: 9px;
+  background: #0f172a;
+  color: #fff;
+  font-weight: 900;
+}
+
+/* ---- Tableau */
+.panel {
+  grid-area: panel;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  overflow: hidden;
+  border: 1px solid #e5e7eb;
+  border-radius: 16px;
+  background: #fff;
+}
+
+.toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 14px;
+  border-bottom: 1px solid #f1f5f9;
+}
+
+.toolbar select,
+.search {
+  height: 34px;
+  padding: 0 10px;
+  border: 1px solid #e5e7eb;
+  border-radius: 9px;
+  background: #fff;
+  color: #0f172a;
+  font: inherit;
+  font-size: 12px;
+}
+
+.search {
+  flex: 1 1 240px;
+  min-width: 200px;
+}
+
+.search:focus,
+.toolbar select:focus {
+  border-color: var(--accent);
+  outline: none;
+}
+
+.reset,
+.export {
+  height: 34px;
+  padding: 0 12px;
+  border: 1px solid #e5e7eb;
+  border-radius: 9px;
+  background: #fff;
+  color: #334155;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.toolbar .export {
+  margin-left: auto;
+  border-color: #0f172a;
+  background: #0f172a;
+  color: #fff;
+}
+
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 10px 14px;
+  border-bottom: 1px solid #f1f5f9;
+}
+
+.chips button {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 11px;
+  border: 1px solid #e5e7eb;
+  border-radius: 999px;
+  background: #fff;
+  color: #475569;
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.chips em {
+  color: #94a3b8;
+  font-size: 11px;
+  font-style: normal;
+  font-weight: 700;
+}
+
+.chips .chipOn {
+  border-color: #0f172a;
+  background: #0f172a;
+  color: #fff;
+}
+
+.chips .chipOn em {
+  color: #cbd5e1;
+}
+
+.chips .chipOn[data-status='overdue'] { border-color: #b91c1c; background: #b91c1c; }
+.chips .chipOn[data-status='paid'] { border-color: #15803d; background: #15803d; }
+
+.tableWrap {
+  flex: 1;
+  max-height: calc(100vh - 380px);
+  min-height: 320px;
+  overflow: auto;
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.table th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  padding: 0;
+  border-bottom: 1px solid #e5e7eb;
+  background: #f8fafc;
+  text-align: left;
+}
+
+.table th button {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  width: 100%;
+  padding: 10px 12px;
+  border: 0;
+  background: transparent;
+  color: #64748b;
+  font: inherit;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+
+.table th.num button {
+  justify-content: flex-end;
+}
+
+.table th i {
+  color: #cbd5e1;
+  font-size: 9px;
+  font-style: normal;
+}
+
+.table th[aria-sort='ascending'] button,
+.table th[aria-sort='descending'] button {
+  color: #0f172a;
+}
+
+.table th[aria-sort='ascending'] i,
+.table th[aria-sort='descending'] i {
+  color: var(--accent);
+}
+
+.table td {
+  padding: 10px 12px;
+  border-bottom: 1px solid #f1f5f9;
+  white-space: nowrap;
+}
+
+.table tbody tr {
+  cursor: pointer;
+}
+
+.table tbody tr:hover td {
+  background: #f8fafc;
+}
+
+.rowOpen td {
+  background: color-mix(in srgb, var(--accent) 6%, white) !important;
+}
+
+.num {
+  text-align: right;
+}
+
+.mono {
+  font-variant-numeric: tabular-nums;
+}
+
+.subject {
+  max-width: 260px;
+  overflow: hidden;
+  color: #475569;
+  text-overflow: ellipsis;
+}
+
+.lateText {
+  color: #b91c1c;
+  font-weight: 600;
+}
+
+.lateText small {
+  font-size: 10px;
+}
+
+.table em {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-style: normal;
+  font-weight: 700;
+}
+
+.st_paid { background: #dcfce7; color: #15803d; }
+.st_pending { background: #fef3c7; color: #b45309; }
+.st_overdue { background: #fee2e2; color: #b91c1c; }
+.st_draft { background: #f1f5f9; color: #475569; }
+.st_progress { background: #dbeafe; color: #1d4ed8; }
+
+.table em.atlasTag {
+  margin-left: 4px;
+  background: #0f172a;
+  color: #fff;
+}
+
+.rowTools button {
+  display: inline-grid;
+  place-items: center;
+  padding: 0;
+  width: 28px;
+  height: 28px;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  background: #fff;
+  color: #475569;
+  font-size: 15px;
+  cursor: pointer;
+}
+
+.rowTools button:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.detail td {
+  padding: 12px 14px 14px;
+  background: color-mix(in srgb, var(--accent) 3%, white);
+  white-space: normal;
+  cursor: default;
+}
+
+.detail:hover td {
+  background: color-mix(in srgb, var(--accent) 3%, white) !important;
+}
+
+.detailGrid {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.detailGrid div {
+  display: grid;
+  padding: 8px 10px;
+  border-radius: 10px;
+  background: #fff;
+}
+
+.detailGrid span {
+  color: #94a3b8;
+  font-size: 10px;
+}
+
+.detailGrid strong {
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+}
+
+.detailActions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.detailActions button {
+  padding: 7px 12px;
+  border: 1px solid #e5e7eb;
+  border-radius: 9px;
+  background: #fff;
+  color: #0f172a;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.detailActions .primary {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: #fff;
+}
+
+.detailActions button:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.note {
+  color: #475569;
+  font-size: 12px;
+}
+
+.none {
+  padding: 40px !important;
+  color: #94a3b8;
+  text-align: center;
+}
+
+.footer {
+  display: flex;
+  justify-content: space-between;
+  padding: 11px 14px;
+  border-top: 1px solid #e5e7eb;
+  color: #64748b;
+  font-size: 12px;
+}
+
+.footer strong {
+  color: #0f172a;
+  font-variant-numeric: tabular-nums;
+}
+
+@media (max-width: 1280px) {
+  .wrap {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-areas: 'cards' 'atlas' 'panel';
+    grid-template-rows: auto;
+  }
+
+  .atlas {
+    position: static;
+  }
+
+  .cards {
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  }
+}
