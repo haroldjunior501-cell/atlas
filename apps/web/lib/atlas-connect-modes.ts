@@ -32,6 +32,25 @@ const TOKEN_FIELDS: Record<string, TokenField[]> = {
   dropbox: [{ key: 'DROPBOX_ACCESS_TOKEN', label: 'Access token Dropbox', placeholder: 'sl.…', secret: true }],
   pipedrive: [{ key: 'PIPEDRIVE_API_TOKEN', label: 'Token API Pipedrive', placeholder: '…', secret: true }],
   canva: [{ key: 'CANVA_API_TOKEN', label: 'Token API Canva', placeholder: '…', secret: true }],
+  evolus: [
+    { key: 'EVOLUS_API_KEY', label: 'Clé API Evolus', placeholder: '…', secret: true },
+    { key: 'EVOLUS_APP_ID', label: 'Application Id Evolus', placeholder: 'app_…' },
+    { key: 'EVOLUS_AGENT_ID', label: 'Agent (applicationId:agentId)', placeholder: 'app:agent' },
+  ],
+  ztc_core: [
+    { key: 'ZTC_CORE_API', label: 'URL API métier ZTC', placeholder: 'https://…/api' },
+    { key: 'ZTC_BRIDGE_TOKEN', label: 'Jeton pont ATLAS ← ZTC', placeholder: 'optionnel', secret: true },
+  ],
+  fossbilling: [
+    { key: 'ZTC_FOSSBILLING_URL', label: 'URL boutique FOSSBilling', placeholder: 'https://ztchosting.com' },
+  ],
+  devoid: [
+    { key: 'ZTC_DEVOID_URL', label: 'URL DEVOID', placeholder: 'https://ztchosting.com/devoid-api' },
+    { key: 'ZTC_DEVOID_TOKEN', label: 'Jeton DEVOID (lecture)', placeholder: 'optionnel', secret: true },
+  ],
+  whm: [
+    { key: 'ZTC_WHM_URL', label: 'URL WHM (lecture)', placeholder: 'https://…:2087' },
+  ],
 }
 
 /** Providers branchés en OAuth natif Atlas (Client ID / Secret). */

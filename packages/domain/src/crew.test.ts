@@ -3,6 +3,7 @@ import { describe, it } from 'node:test'
 import {
   alignPrices,
   assignCrew,
+  connectorIn,
   countIn,
   fallbackPlan,
   median,
@@ -87,5 +88,9 @@ describe('mission d’équipe', () => {
   it('lève la main avant une action sensible', () => {
     assert.match(permissionFor('Envoie la newsletter par Gmail aux clients') ?? '', /accord.*Gmail/)
     assert.equal(permissionFor('Rédige trois posts LinkedIn'), undefined)
+  })
+
+  it('reconnaît Evolus comme connecteur d’équipe', () => {
+    assert.equal(connectorIn('Compare les briefs via Evolus')?.provider, 'evolus')
   })
 })

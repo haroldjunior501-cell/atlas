@@ -131,7 +131,7 @@ export function CrewBoard({ crew, canRun }: { crew: CrewApi; canRun: boolean }) 
   const detail = run?.steps.find((step) => step.step.id === openStep) ?? null
   const table = run?.steps.find((step) => step.table?.rows.length)
   const asks = new Set(run?.steps.filter((step) => step.status === 'permission').map((step) => step.step.id))
-  const examples = /ztc hosting/i.test(crew.rules) ? ztcMissionExamples() : EXAMPLES
+  const examples = /ztc hosting|FOSSBilling|DEVOID/i.test(crew.rules) ? ztcMissionExamples() : EXAMPLES
 
   return (
     <div className={styles.board}>

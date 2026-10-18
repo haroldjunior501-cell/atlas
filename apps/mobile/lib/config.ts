@@ -21,8 +21,8 @@ function pcHost() {
 function origin(port: number, envValue: string | undefined) {
   const host = pcHost()
   if (host) return `http://${host}:${port}`
-  if (envValue && !envValue.includes('192.168.1.132')) return envValue
-  return `http://10.1.3.23:${port}`
+  if (envValue && !/192\.168\.1\.132|10\.1\.3\.23|172\.22\.29\.184/.test(envValue)) return envValue
+  return `http://10.81.179.184:${port}`
 }
 
 export const gatewayUrl = origin(4000, process.env.EXPO_PUBLIC_ATLAS_GATEWAY_URL)

@@ -16,7 +16,7 @@
     "dev:ace": "docker compose --env-file .env -f services/ace/docker-compose.yml up --build",
     "companion": "powershell -ExecutionPolicy Bypass -File tools/atlas-companion/Start-AtlasCompanion.ps1",
     "typecheck": "npm run typecheck --workspaces --if-present",
-    "test": "tsx --test services/orchestrator/src/permissions.test.ts services/orchestrator/src/snapshot.test.ts services/gateway/src/state-store.test.ts services/gateway/src/postgres-state.test.ts services/orchestrator/src/nvidia.test.ts services/orchestrator/src/jarvis.test.ts services/orchestrator/src/builder.test.ts services/orchestrator/src/memory-ask.test.ts services/orchestrator/src/task-flow.test.ts services/voice/src/visemes.test.ts packages/domain/src/office-layout.test.ts packages/domain/src/crew.test.ts packages/domain/src/ztc-hosting.test.ts"
+    "test": "tsx --test services/orchestrator/src/permissions.test.ts services/orchestrator/src/snapshot.test.ts services/gateway/src/state-store.test.ts services/gateway/src/postgres-state.test.ts services/orchestrator/src/nvidia.test.ts services/orchestrator/src/jarvis.test.ts services/orchestrator/src/builder.test.ts services/orchestrator/src/memory-ask.test.ts services/orchestrator/src/task-flow.test.ts services/voice/src/visemes.test.ts packages/domain/src/office-layout.test.ts packages/domain/src/crew.test.ts packages/domain/src/ztc-hosting.test.ts apps/web/lib/ztc-live.test.ts apps/web/lib/ztc-connect.test.ts apps/web/lib/atlas-mcp.test.ts apps/web/lib/hackathon-stack.test.ts"
   },
   "devDependencies": {
     "tsx": "^4.20.5",

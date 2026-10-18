@@ -63,10 +63,16 @@
   height: 40px;
   display: grid;
   place-items: center;
+  overflow: hidden;
   border-radius: 12px;
-  background: #241018;
-  color: #ff4fd8;
+  background: #05060c;
   flex: none;
+}
+
+.orgMark img {
+  width: 36px;
+  height: 36px;
+  object-fit: contain;
 }
 
 .orgChip div { min-width: 0; flex: 1; }

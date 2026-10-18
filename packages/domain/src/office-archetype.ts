@@ -275,7 +275,7 @@ export const ARCHETYPES: Record<OfficeArchetype, ArchetypeSpec> = {
   hosting: {
     id: 'hosting',
     label: 'Hébergeur cloud',
-    tagline: 'Support, NOC, hébergement, domaines, sécurité',
+    tagline: 'Support, NOC, hébergement, domaines, facturation, SKU IA',
     theme: { ...BASE_THEME, accent: '#0ea5e9' },
     rules: [
       { test: /accueil|support|succ[eè]s|ticket|nova|relation client/i, kind: 'service_desk' },
@@ -283,17 +283,20 @@ export const ARCHETYPES: Record<OfficeArchetype, ArchetypeSpec> = {
       { test: /h[eé]berg|whm|cpanel|vega|serveur|infra/i, kind: 'server_room' },
       { test: /domaine|dns|lyra|ssl|certificat/i, kind: 'project_room' },
       { test: /mail|messag|echo|d[eé]livrabilit/i, kind: 'cubicle' },
-      { test: /vps|proxmox|openstack|helix|cloud/i, kind: 'server_room' },
-      { test: /s[eé]curit|soc|cipher|grc|conform/i, kind: 'lab' },
+      { test: /vps|proxmox|openstack|helix|cloud|llm|gpu/i, kind: 'server_room' },
+      { test: /s[eé]curit|soc|cipher|grc|conform|radar|aegis|scan|vuln/i, kind: 'lab' },
       { test: /factur|billing|ledger|finance|fossbilling/i, kind: 'private_office' },
-      { test: /devops|forge|release|ansible/i, kind: 'open_space' },
-      { test: /growth|pulse|produit|marketing/i, kind: 'open_space' },
+      { test: /devops|forge|release|ansible|n8n|openclaw/i, kind: 'open_space' },
+      { test: /growth|pulse|produit/i, kind: 'project_room' },
+      { test: /marketing|flare|clip|boost|muse|pub|trafic|vid[eé]o|cr[eé]a|campagne/i, kind: 'creative_studio' },
+      { test: /swift|perf|ttfb|rapidit/i, kind: 'war_room' },
     ],
     signature: [
       { key: 'support', name: 'Accueil & support', kind: 'service_desk' },
       { key: 'noc', name: 'Salle des opérations', kind: 'war_room' },
       { key: 'hosting', name: 'Réseau & hébergement', kind: 'server_room' },
       { key: 'soc', name: 'Salle de sécurité', kind: 'lab' },
+      { key: 'studio', name: 'Studio marketing', kind: 'creative_studio' },
       { key: 'meeting', name: 'Salle de réunion', kind: 'meeting_medium' },
     ],
     commons: [
@@ -504,19 +507,28 @@ export function sampleOrganization(archetype: OfficeArchetype): {
       }
     case 'hosting':
       return {
-        name: 'ZTC Hosting',
+        name: 'ZtcHosting',
         sector: 'Hébergement web et cloud',
         departments: [
-          { id: 'support', name: 'Support', agents: people('su', [['Nova', 'Diallo', 'Support & Customer Success', 'working']]) },
+          { id: 'support', name: 'Support', agents: people('su', [['Nova', 'Diallo', 'Support & Customer Success', 'working'], ['Devoid', 'ZTC', 'Customer AI Operator', 'working']]) },
+          { id: 'flux', name: 'Flux visiteurs', agents: people('fx', [['Funnel', 'Moreau', 'Visitor Flow & Prospects', 'working']]) },
           { id: 'noc', name: 'Opérations', agents: people('no', [['Orion', 'Keller', 'SRE / Infrastructure', 'working']]) },
           { id: 'host', name: 'Hébergement', agents: people('ho', [['Vega', 'Moreau', 'Hosting & WHM', 'working']]) },
           { id: 'dns', name: 'Domaines & DNS', agents: people('dn', [['Lyra', 'Benali', 'Domains & DNS']]) },
           { id: 'mail', name: 'Messagerie', agents: people('ma', [['Echo', 'Santos', 'Mail & Deliverability', 'idle']]) },
-          { id: 'cloud', name: 'Cloud / VPS', agents: people('cl', [['Helix', 'Park', 'Cloud / VPS']]) },
-          { id: 'soc', name: 'Sécurité', agents: people('se', [['Cipher', 'Nguyen', 'Security & SOC']]) },
+          { id: 'cloud', name: 'Cloud / VPS', agents: people('cl', [['Helix', 'Park', 'Cloud / VPS / LLM']]) },
+          { id: 'soc', name: 'Sécurité', agents: people('se', [['Cipher', 'Nguyen', 'Security & SOC'], ['Radar', 'Ito', 'Surface Scan', 'working'], ['Aegis', 'Khan', 'Vulnerability Research']]) },
           { id: 'fin', name: 'Facturation', agents: people('fi', [['Ledger', 'Rousseau', 'Billing & Finance Ops']]) },
           { id: 'dev', name: 'DevOps', agents: people('de', [['Forge', 'Martin', 'DevOps & Release', 'idle']]) },
-          { id: 'growth', name: 'Produit', agents: people('gr', [['Pulse', 'Favre', 'Growth & Product'], ['Sage', 'Aubert', 'GRC / Compliance', 'idle']]) },
+          { id: 'growth', name: 'Produit', agents: people('gr', [['Pulse', 'Favre', 'Growth & Product']]) },
+          { id: 'mkt', name: 'Marketing', agents: people('mk', [
+            ['Flare', 'Morel', 'Ads Visual Designer', 'working'],
+            ['Clip', 'Nguyen', 'Promo Video Producer', 'working'],
+            ['Boost', 'Keller', 'Traffic & Acquisition', 'working'],
+            ['Muse', 'Bernard', 'Campaign Copywriter'],
+          ]) },
+          { id: 'grc', name: 'Conformité', agents: people('gc', [['Sage', 'Aubert', 'GRC / Compliance', 'idle']]) },
+          { id: 'perf', name: 'Performance', agents: people('pe', [['Swift', 'Costa', 'Site Performance', 'working']]) },
         ],
       }
     case 'manufacturing':

@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { ARCHETYPES, ARCHETYPE_IDS, formatChf, isZtcOrganization, type OpsAction } from '@atlas/domain'
+import { ARCHETYPES, formatChf, isZtcOrganization, ZTC_MARK, ZTC_NAME, ZTC_SITE, type OpsAction } from '@atlas/domain'
 import { OfficeScene, type LifeEntry, type SceneView } from './office-scene'
 import type { ActionRun, OfficeTwin } from './use-office-twin'
 import type { OfficeControl } from './office-control'
@@ -38,7 +38,7 @@ export function BureauLive({
   onSelectAgent: (id: string | null) => void
   onOpenInvoices: (scope: { roomId?: string; agentId?: string }) => void
 }) {
-  const { archetype, detected, choice, org } = twin
+  const { archetype, org } = twin
   const crewLive = crew?.live
   const layout = useMemo(() => {
     if (!crewLive?.working.size) return twin.layout
@@ -83,13 +83,39 @@ export function BureauLive({
     else void liveRef.current?.requestFullscreen?.()
   }
 
+  /** Pilotage distant (mobile ATLAS) : plein écran + caméra. */
+  useEffect(() => {
+    function onRemote(event: Event) {
+      const detail = (event as CustomEvent<{ op?: string }>).detail
+      if (!detail?.op) return
+      if (detail.op === 'fullscreen') {
+        if (!document.fullscreenElement) void liveRef.current?.requestFullscreen?.()
+        return
+      }
+      if (detail.op === 'exitFullscreen') {
+        if (document.fullscreenElement) void document.exitFullscreen()
+        return
+      }
+      if (detail.op === 'overview') {
+        setView({ kind: 'overview', nonce: Date.now() })
+        return
+      }
+      if (detail.op === 'top') {
+        setView({ kind: 'top', nonce: Date.now() })
+      }
+    }
+    window.addEventListener('atlas-studio-remote', onRemote as EventListener)
+    return () => window.removeEventListener('atlas-studio-remote', onRemote as EventListener)
+  }, [])
+
   const zone = roomId ? ops.zones[roomId] : null
   const room = roomId ? layout.rooms.find((r) => r.id === roomId) ?? null : null
   const zoneAgents = roomId ? layout.agents.filter((a) => a.roomId === roomId) : []
   const asset = assetId ? ops.assets.find((a) => a.id === assetId) ?? null : null
   const agent = selectedAgentId ? layout.agents.find((a) => a.id === selectedAgentId) ?? null : null
   const agentRecords = agent ? ops.records.filter((r) => r.agentId === agent.id) : []
-  const working = layout.agents.filter((a) => a.status === 'working' || a.status === 'online').length
+  const working = layout.agents.filter((a) => a.status === 'working' || Boolean(ops.tasks[a.id] && !/^En poste/i.test(ops.tasks[a.id]!))).length
+  const agentsKpi = ops.kpis.find((kpi) => kpi.id === 'agents')
   const actions = roomId
     ? ops.atlas.actions.filter((a) => a.roomId === roomId)
     : agent ? ops.atlas.actions.filter((a) => a.agentId === agent.id) : ops.atlas.actions
@@ -125,12 +151,14 @@ export function BureauLive({
 
         <div className={styles.hud}>
           <div className={styles.brand}>
-            <span className={styles.logo}>{twin.name.slice(0, 1).toUpperCase()}</span>
+            <span className={styles.logo}>
+              <img src={ZTC_MARK} alt="" width={30} height={30} />
+            </span>
             <div>
-              <strong>{twin.name}</strong>
+              <strong>{ZTC_NAME}</strong>
               <span>
-                {ARCHETYPES[archetype].label} · {working}/{layout.agents.length} agents actifs
-                <i className={styles.pulse} data-stream={control.stream} /> {control.stream === 'live' ? 'Live' : control.stream === 'polling' ? 'Synchro' : 'Démo'}
+                {ARCHETYPES[archetype].label} · {agentsKpi?.value ?? `${working}/${layout.agents.length}`} agents actifs
+                <i className={styles.pulse} data-stream={control.stream} /> {control.stream === 'live' ? 'Live produit' : control.stream === 'polling' ? 'Synchro' : 'Démo'}
               </span>
             </div>
           </div>
@@ -147,11 +175,8 @@ export function BureauLive({
 
         <div className={styles.tools}>
           <label className={styles.envSelect}>
-            <span>Environnement</span>
-            <select value={choice} onChange={(event) => twin.pickChoice(event.target.value)}>
-              <option value="auto">Auto · {ARCHETYPES[detected].label}</option>
-              {ARCHETYPE_IDS.map((id) => <option key={id} value={id}>{ARCHETYPES[id].label}</option>)}
-            </select>
+            <span>Agence</span>
+            <strong>{ZTC_NAME}</strong>
           </label>
           <button type="button" onClick={() => { pickRoom(null); onSelectAgent(null); setView({ kind: 'overview', nonce: Date.now() }) }}>Vue d’ensemble</button>
           <button type="button" onClick={() => setView({ kind: 'top', nonce: Date.now() })}>Plan</button>
@@ -166,7 +191,7 @@ export function BureauLive({
           <ol>
             {ops.stages.map((stage, index) => (
               <li key={stage.id}>
-                <span className={styles.dot}>{stage.count}</span>
+                <span className={styles.dot}>{stage.count > 0 ? stage.count : '·'}</span>
                 <em>{stage.label}</em>
                 {index < ops.stages.length - 1 ? <i className={styles.link} /> : null}
               </li>
@@ -194,7 +219,7 @@ export function BureauLive({
           <span><i style={{ background: '#38bdf8' }} /> En ligne</span>
           <span><i style={{ background: '#f59e0b' }} /> En pause</span>
           <span><i style={{ background: '#9ca3af' }} /> Hors ligne</span>
-          {!org || ops.simulated ? <em>{org ? 'Gestion simulée · équipe en direct' : 'Démonstration'}</em> : null}
+          {!org ? <em>Démonstration</em> : <em>Produit live · FOSSBilling / DEVOID</em>}
         </div>
 
         <button type="button" className={styles.panelToggle} onClick={() => setPanel((v) => !v)} aria-label={panel ? 'Masquer le panneau' : 'Afficher le panneau'}>
@@ -205,7 +230,9 @@ export function BureauLive({
       <aside className={styles.side}>
         <div className={`${styles.card} ${styles.atlas}`}>
           <div className={styles.atlasHead}>
-            <span className={styles.atlasMark}>A</span>
+            <span className={styles.atlasMark} aria-hidden>
+              <img src="/brand/atlas-mark.svg" alt="" width={22} height={22} />
+            </span>
             <div>
               <div className={styles.kicker}>ATLAS orchestre</div>
               <small>{ops.atlas.summary}</small>
@@ -270,16 +297,20 @@ export function BureauLive({
               {zone.metrics.slice(0, 2).map((m) => <div key={m.label}><span>{m.label}</span><strong>{m.value}</strong></div>)}
               <div><span>Dossiers</span><strong>{zone.finance.records}</strong></div>
             </div>
-            <div className={`${styles.metrics} ${styles.money}`}>
-              <div><span>Facturé</span><strong>{formatChf(zone.finance.billed)}</strong></div>
-              <div className={zone.finance.overdue ? styles.warnBox : undefined}>
-                <span>À encaisser{zone.finance.overdue ? ` · ${zone.finance.overdue} échue${zone.finance.overdue > 1 ? 's' : ''}` : ''}</span>
-                <strong>{formatChf(zone.finance.pending)}</strong>
-              </div>
-            </div>
-            {zone.finance.records ? (
-              <button type="button" className={styles.linkBtn} onClick={() => onOpenInvoices({ roomId: room.id })}>Voir les {zone.finance.records} factures du département →</button>
-            ) : null}
+            {zone.finance.records > 0 ? (
+              <>
+                <div className={`${styles.metrics} ${styles.money}`}>
+                  <div><span>Facturé</span><strong>{formatChf(zone.finance.billed)}</strong></div>
+                  <div className={zone.finance.overdue ? styles.warnBox : undefined}>
+                    <span>À encaisser{zone.finance.overdue ? ` · ${zone.finance.overdue} échue${zone.finance.overdue > 1 ? 's' : ''}` : ''}</span>
+                    <strong>{formatChf(zone.finance.pending)}</strong>
+                  </div>
+                </div>
+                <button type="button" className={styles.linkBtn} onClick={() => onOpenInvoices({ roomId: room.id })}>Voir les {zone.finance.records} factures du département →</button>
+              </>
+            ) : (
+              <p className={styles.sub}>Pas de factures live pour ce département (FOSSBilling non branché en lecture factures).</p>
+            )}
             {zoneAgents.length ? (
               <>
                 <div className={styles.section}>Équipe sur place</div>
@@ -411,25 +442,152 @@ export function ActionList({
   )
 }
 
+type ZtcLiveBody = {
+  at?: string
+  live?: {
+    companyName?: string
+    products?: Array<{ title: string; priceFrom: number | null; comingSoon: boolean; unit: string }>
+    news?: Array<{ tag: string; title: string }>
+    drift?: string[]
+    devoid?: { ok?: boolean; operator?: string; version?: string; model?: string; fossbilling?: boolean; tools?: string[]; note?: string; latencyMs?: number }
+  }
+  ops?: {
+    scan?: { status?: number; server?: string; missing?: string[] }
+    speed?: Array<{ path: string; ttfbMs: number; status: number; ok: boolean }>
+  }
+  connectors?: Array<{ label: string; certainty: string; ok?: boolean; latencyMs?: number }>
+  company?: { journey?: string[]; desks?: Array<{ firstName: string; role: string; ring: string }> }
+}
+
+function priceOf(product: { priceFrom: number | null; comingSoon: boolean }) {
+  if (product.comingSoon) return 'soon'
+  if (product.priceFrom === 0) return 'gratuit'
+  if (product.priceFrom == null) return '—'
+  return `$${product.priceFrom}`
+}
+
+type ZtcConnectBody = {
+  llms?: { amd?: { live?: boolean; model?: string }; gemma?: { live?: boolean; model?: string } }
+  bridge?: { think?: string; open?: boolean }
+  desks?: Array<{ firstName: string; ring: string }>
+}
+
 function ZtcLiveCard() {
-  const [lines, setLines] = useState<string[]>(['Lecture du site public ZTC…'])
+  const [body, setBody] = useState<ZtcLiveBody | null>(null)
+  const [connect, setConnect] = useState<ZtcConnectBody | null>(null)
+  const [error, setError] = useState('')
+  const [desk, setDesk] = useState('Nova')
+  const [question, setQuestion] = useState('')
+  const [answer, setAnswer] = useState('')
+  const [busy, setBusy] = useState(false)
   useEffect(() => {
     let cancel = false
-    void fetch('/api/atlas/ztc')
-      .then((response) => response.json())
-      .then((body: { facts?: Array<{ label: string; value: string; certainty: string }>; connectors?: Array<{ label: string; certainty: string; ok?: boolean }> }) => {
-        if (cancel) return
-        const facts = (body.facts ?? []).slice(0, 5).map((item) => `${item.label} · ${item.value} [${item.certainty}]`)
-        const links = (body.connectors ?? []).map((item) => `${item.label}: ${item.certainty}${item.ok === false ? ' (injoignable)' : item.ok ? ' (répond)' : ''}`)
-        setLines([...facts, ...links])
-      })
-      .catch(() => { if (!cancel) setLines(['Inventaire ZTC indisponible. Rien n’est inventé.']) })
-    return () => { cancel = true }
+    const pull = () => {
+      void fetch('/api/atlas/ztc')
+        .then((response) => response.json())
+        .then((next: ZtcLiveBody) => { if (!cancel) { setBody(next); setError('') } })
+        .catch(() => { if (!cancel) setError('Flux ZtcHosting indisponible. Rien n’est inventé.') })
+      void fetch('/api/atlas/ztc/connect')
+        .then((response) => response.json())
+        .then((next: ZtcConnectBody) => { if (!cancel) setConnect(next) })
+        .catch(() => { /* pont optionnel */ })
+    }
+    pull()
+    const timer = window.setInterval(pull, 12000)
+    return () => { cancel = true; window.clearInterval(timer) }
   }, [])
+  const live = body?.live
+  const devoid = live?.devoid
+  const products = live?.products ?? []
+  const desks = connect?.desks ?? body?.company?.desks ?? []
+  const ask = () => {
+    const text = question.trim()
+    if (text.length < 3 || busy) return
+    setBusy(true)
+    void fetch('/api/atlas/ztc/connect', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ op: 'think', desk, text }),
+    })
+      .then((response) => response.json())
+      .then((next: { text?: string; desk?: string; error?: string }) => {
+        setAnswer(next.text || next.error || 'Pas de réponse LLM.')
+        if (next.desk) setDesk(next.desk)
+      })
+      .catch(() => setAnswer('Pont LLM injoignable.'))
+      .finally(() => setBusy(false))
+  }
   return (
     <div className={styles.ztc}>
-      <div>ZTC Hosting · preuves publiques</div>
-      <ul>{lines.map((line) => <li key={line}>{line}</li>)}</ul>
+      <div>ZtcHosting · flux live</div>
+      {error ? <p>{error}</p> : null}
+      <p className={styles.ztcLlm} data-ok={connect?.llms?.amd?.live ? 'yes' : 'no'}>
+        LLM · {connect?.llms?.amd?.live ? connect.llms.amd.model : 'DeepSeek…'}
+        {connect?.llms?.gemma?.live ? ` · ${connect.llms.gemma.model}` : ''}
+        {connect?.bridge?.open ? ' · pont ouvert' : ' · pont jeton'}
+      </p>
+      <div className={styles.ztcDevoid} data-ok={devoid?.ok ? 'yes' : 'no'}>
+        <strong>{devoid?.operator ?? 'DEVOID'}</strong>
+        <span>{devoid?.ok ? `en ligne · ${devoid.version ?? ''} · ${devoid.model ?? ''}` : (devoid?.note ?? 'lecture…')}</span>
+        <small>ATLAS orchestre · chat client sur le site{devoid?.fossbilling ? ' · FOSSBilling relié' : ''}</small>
+      </div>
+      {products.length ? (
+        <ul className={styles.ztcSku}>
+          {products.map((product) => (
+            <li key={product.title} data-soon={product.comingSoon ? 'yes' : 'no'}>
+              <span>{product.title}</span>
+              <em>{priceOf(product)}</em>
+            </li>
+          ))}
+        </ul>
+      ) : <p>Catalogue guest en lecture…</p>}
+      {live?.news?.length ? <p>Accueil · {live.news.map((item) => item.title).join(' · ')}</p> : null}
+      {live?.drift?.map((item) => <p key={item}>{item}</p>)}
+      {body?.ops?.speed?.length ? (
+        <ul className={styles.ztcOps}>
+          {body.ops.speed.map((point) => (
+            <li key={point.path} data-ok={point.ok ? 'yes' : 'no'}>
+              <span>{point.path}</span>
+              <em>{point.ttfbMs} ms</em>
+            </li>
+          ))}
+        </ul>
+      ) : null}
+      {body?.ops?.scan ? (
+        <p>Radar · HTTP {body.ops.scan.status} · {body.ops.scan.server}{body.ops.scan.missing?.length ? ` · manque ${body.ops.scan.missing.join(', ')}` : ''}</p>
+      ) : null}
+      {body?.company?.desks?.length ? (
+        <p className={styles.ztcDesks}>{body.company.desks.map((desk) => `${desk.firstName} ${desk.ring}`).join(' · ')}</p>
+      ) : null}
+      {body?.company?.journey ? <p>Parcours · {body.company.journey.join(' → ')}</p> : null}
+      <form
+        className={styles.ztcAsk}
+        onSubmit={(event) => { event.preventDefault(); ask() }}
+      >
+        <label>
+          Bureau
+          <select value={desk} onChange={(event) => setDesk(event.target.value)}>
+            {(desks.length ? desks : [{ firstName: 'Nova', ring: 'R1' }]).map((item) => (
+              <option key={item.firstName} value={item.firstName}>{item.firstName} {item.ring}</option>
+            ))}
+          </select>
+        </label>
+        <label>
+          Ordre pour le LLM
+          <input
+            value={question}
+            onChange={(event) => setQuestion(event.target.value)}
+            placeholder="ex. Swift, le TTFB de /order ?"
+          />
+        </label>
+        <button type="submit" disabled={busy || question.trim().length < 3}>{busy ? '…' : 'Demander'}</button>
+      </form>
+      {answer ? <p className={styles.ztcAnswer}>{answer}</p> : null}
+      <div className={styles.ztcSite}>
+        <a href={ZTC_SITE} target="_blank" rel="noreferrer">Ouvrir ztchosting.com</a>
+        <iframe title="ZtcHosting" src={ZTC_SITE} sandbox="allow-scripts allow-same-origin allow-forms" />
+      </div>
+      <p>{body?.at ? `Updated ${new Date(body.at).toLocaleTimeString('en-US')}` : ''} · {body?.connectors?.filter((item) => item.ok).length ?? 0} links responding</p>
     </div>
   )
 }

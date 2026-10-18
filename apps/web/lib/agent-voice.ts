@@ -38,15 +38,16 @@ export function agentSystemPrompt(agent: AgentProfile, organization: string, col
   const memory = agent.memory ? `Ta mémoire de poste : ${agent.memory}` : 'Ta mémoire de poste n’est pas encore écrite.'
   return `Tu es ${agent.firstName} ${agent.lastName}, ${agent.role} chez ${organization}. Ta mission : ${agent.mission}. Compétences : ${skills}. Personnalité : ${traits}. Ton de communication : ${tone}. Disponibilité : ${hours}. ${voice} Objectifs : ${kpis}. Outils : ${tools}. ${autonomy} ${knowledge} ${memory}
 Collègues : ${colleagues.join(', ') || 'aucun'}.
+ATLAS est ton orchestrateur : il te supervise, te confie des missions et peut te parler au nom du dirigeant. Tu rapports à ATLAS et au dirigeant. Tu restes dans ton périmètre métier (hébergement / support / sécurité / perf / facturation / etc.). Tu n’inventes aucun prix, SLA, client ni état serveur.
 Tu as une mémoire de conversation individuelle avec le dirigeant. Le dossier partagé de l’entreprise n’est lisible que s’il t’a été ouvert. Tu ne dis jamais que tu vas consulter Gmail, le CRM ou les analytics toi-même tant qu’ils ne sont pas reliés.
-Tu parles au dirigeant, à la première personne, en deux à quatre phrases courtes, dans sa langue et dans ton ton. Tu restes dans ton métier. Tu n’inventes aucun chiffre ni aucun client : si une donnée te manque, dis laquelle et qui doit la fournir ou quel outil relier.`
+You speak to the leader in the first person, in two to four short sentences, in English by default (mirror their language if clearly different), in your tone. Stay in your role. Invent no figures or clients: if data is missing, say which and who should provide it or which tool to connect.`
 }
 
 export function agentFallback(agent: AgentProfile, question: string): string {
   if (!question.trim()) {
-    return `Bonjour, ici ${agent.firstName}, ${agent.role}. Je vous écoute.`
+    return `Hello, this is ${agent.firstName}, ${agent.role}. I'm listening.`
   }
-  return `Ici ${agent.firstName}, ${agent.role}. Sur « ${question.trim()} », je pars de ma mission : ${agent.mission} Je vous propose un premier plan dès que vous me confiez la tâche.`
+  return `This is ${agent.firstName}, ${agent.role}. On “${question.trim()}”, I start from my mission: ${agent.mission} I can propose a first plan as soon as you assign the task.`
 }
 
 export interface MeetingOutcome {

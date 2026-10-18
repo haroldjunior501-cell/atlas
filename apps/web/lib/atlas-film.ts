@@ -31,7 +31,7 @@ const DIRECTOR = `Tu es le directeur d'Atlas Film. Tu prépares UN plan pour qua
 Open-Sora (plaque visuelle), SkyReels V2 (lumière cinéma, mouvement, durée), EverAnimate (identité d'un personnage), MOVA (voix, lèvres, bruitages synchronisés).
 Réponds UNIQUEMENT avec un JSON :
 {"title":"court","visual":"prompt anglais très précis : sujet, lumière, objectif, mouvement de caméra","speech":"réplique dite ou chaîne vide","cast":"person|scene","seconds":8}
-visual : une seule scène, en anglais. speech : langue de l'utilisateur, vide si personne ne parle. seconds : 4 à 12.`
+visual: one scene, in English. speech: English by default (mirror user language if clearly different), empty if nobody speaks. seconds: 4 to 12.`
 
 const NAMES: Record<string, string> = {
   'open-sora': 'Open-Sora',

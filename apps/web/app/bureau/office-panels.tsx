@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { CONNECTOR_CATALOG, formatChf, spacesFor, type OfficeAgentPlacement, type OfficeArchetype, type OfficeSpaceKind } from '@atlas/domain'
+import { CONNECTOR_CATALOG, formatChf, spacesFor, ZTC_CONNECTORS, type OfficeAgentPlacement, type OfficeArchetype, type OfficeSpaceKind } from '@atlas/domain'
 import { WORK_LABEL, type ControlResult, type OfficeControl } from './office-control'
 import styles from './bureau-live.module.css'
 
@@ -78,8 +78,8 @@ export function AgentCard({
       </div>
       <div className={styles.metrics}>
         <div><span>Statut</span><strong className={styles.small}><i className={styles.presence} data-status={agent.status} /> {PRESENCE[agent.status] ?? agent.status}</strong></div>
-        <div><span>Dossiers</span><strong>{records}</strong></div>
-        <div><span>Facturé</span><strong className={styles.small}>{formatChf(billed)}</strong></div>
+        <div><span>Missions</span><strong>{work.length || '—'}</strong></div>
+        <div><span>Facturé</span><strong className={styles.small}>{records > 0 ? formatChf(billed) : '—'}</strong></div>
       </div>
 
       {control.live && delegation ? (
@@ -106,7 +106,7 @@ export function AgentCard({
           ))}
         </ul>
       ) : (
-        <div className={styles.task}>{control.live ? 'Aucune mission réelle pour le moment.' : simulatedTask}</div>
+        <div className={styles.task}>{simulatedTask?.trim() || 'En poste · en attente d’une mission produit.'}</div>
       )}
 
       {control.live ? (
@@ -145,7 +145,7 @@ export function AgentCard({
               onChange={(event) => { const p = event.target.value; if (p) void go(() => control.grantTool(agent.id, p, true)) }}
             >
               <option value="">+ Outil…</option>
-              {CONNECTOR_CATALOG.filter((item) => !granted.has(item.provider)).map((item) => <option key={item.provider} value={item.provider}>{item.label}</option>)}
+              {CONNECTOR_CATALOG.filter((item) => !granted.has(item.provider) && (ZTC_CONNECTORS as readonly string[]).includes(item.provider)).map((item) => <option key={item.provider} value={item.provider}>{item.label}</option>)}
             </select>
           </div>
           {tools.some((t) => t.granted && !t.connected) ? (

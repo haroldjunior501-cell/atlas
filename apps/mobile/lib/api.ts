@@ -102,3 +102,92 @@ export function greetingForNow(name = 'CEO') {
   if (hour < 18) return `Bon après-midi, ${name}.`
   return `Bonsoir, ${name}.`
 }
+
+export type OrgAgent = {
+  id: string
+  firstName: string
+  lastName: string
+  role: string
+  department: string
+  presence: string
+  skills: string[]
+  workflow: string
+  ring: string | null
+  face?: string
+}
+
+export type OrgChatTurn = {
+  id: string
+  role: 'user' | 'agent'
+  text: string
+  at: string
+}
+
+export type OrgBoard = {
+  organization: { id: string; name: string; objective?: string | null }
+  agents: OrgAgent[]
+  departments: Array<{ id: string; name: string }>
+  pulse: { openTasks: number; activeAgents: number; pendingDecisions: number }
+  product: {
+    sku: number
+    devoid?: boolean
+    model?: string
+    drift?: string[]
+    speed?: Array<{ path: string; ttfbMs: number; ok: boolean }>
+  } | null
+}
+
+export async function fetchOrgBoard(): Promise<OrgBoard> {
+  const userId = (await currentUserId()) || 'harold'
+  const response = await fetch(`${webOrigin}/api/atlas/mobile-org`, {
+    headers: { 'x-atlas-user': userId },
+  })
+  const body = await response.json() as OrgBoard & { error?: string }
+  if (!response.ok) throw new Error(body.error || 'Organisation indisponible')
+  return body
+}
+
+export async function delegateMission(text: string, agentId?: string, desk?: string, op: 'delegate' | 'ask' | 'chat' | 'report' = 'delegate') {
+  const userId = (await currentUserId()) || 'harold'
+  const response = await fetch(`${webOrigin}/api/atlas/mobile-org`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', 'x-atlas-user': userId },
+    body: JSON.stringify({ op, text, agentId, desk }),
+  })
+  const body = await response.json() as { ok?: boolean; reply?: string; error?: string; agent?: OrgAgent }
+  if (!response.ok || !body.reply) throw new Error(body.error || 'Délégation impossible')
+  return body as { ok: boolean; reply: string; agent?: OrgAgent }
+}
+
+export async function chatWithAgent(text: string, agentId: string) {
+  return delegateMission(text, agentId, undefined, 'chat')
+}
+
+export async function askAgentReport(agentId: string, focus = 'Donne-moi ton rapport de poste') {
+  return delegateMission(focus, agentId, undefined, 'report')
+}
+
+export async function fetchAgentThread(agentId: string): Promise<OrgChatTurn[]> {
+  const userId = (await currentUserId()) || 'harold'
+  const response = await fetch(`${webOrigin}/api/atlas/mobile-org`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', 'x-atlas-user': userId },
+    body: JSON.stringify({ op: 'thread', agentId }),
+  })
+  const body = await response.json() as { messages?: OrgChatTurn[]; error?: string }
+  if (!response.ok) throw new Error(body.error || 'Fil indisponible')
+  return body.messages ?? []
+}
+
+export async function fetchOrgBrief() {
+  const userId = (await currentUserId()) || 'harold'
+  const response = await fetch(`${webOrigin}/api/atlas/mobile-org`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', 'x-atlas-user': userId },
+    body: JSON.stringify({ op: 'brief' }),
+    signal: AbortSignal.timeout(10000),
+  })
+  const body = await response.json() as { reply?: string; error?: string }
+  if (!response.ok || !body.reply) throw new Error(body.error || 'Brief indisponible')
+  return body.reply
+}

@@ -75,7 +75,7 @@ async def transcribe(audio: str) -> str:
     headers = {"authorization": f"Bearer {key}", "content-type": "application/json"} if key else {"content-type": "application/json"}
     payload: dict[str, Any]
     if ASR_URL.startswith("http"):
-        payload = {"model": os.environ.get("ASR_MODEL_NAME", "nvidia/parakeet"), "language": "fr-FR", "file": audio}
+        payload = {"model": os.environ.get("ASR_MODEL_NAME", "nvidia/parakeet"), "language": "en-US", "file": audio}
     else:
         payload = {
             "model": "nvidia/nemotron-3-nano-omni-30b-a3b-reasoning",
@@ -85,7 +85,7 @@ async def transcribe(audio: str) -> str:
                 "role": "user",
                 "content": [
                     {"type": "input_audio", "input_audio": {"data": audio, "format": "wav"}},
-                    {"type": "text", "text": "Transcris uniquement les mots prononcés."},
+                    {"type": "text", "text": "Transcribe only the spoken words."},
                 ],
             }],
         }

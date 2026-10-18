@@ -11,6 +11,7 @@ import {
   toolsFor,
 } from './agent-kit'
 import type { DelegationLevel, OrganizationDraft, Permission, RoleDraft } from './model'
+import { ztcDevoidToolsOf, ztcSkillsOf } from './ztc-hosting'
 
 export interface PlannedAgent {
   firstName: string
@@ -71,7 +72,7 @@ function accessFor(role: string, department: string): { delegation: DelegationLe
   if (/vente|commercial|sales|immobilier/.test(text)) {
     return { delegation: 'approval', permissions: [allow(ACTION.readCrm), allow(ACTION.sendEmail), blocked(ACTION.spend)] }
   }
-  if (/sre|whm|cpanel|soc|s[eé]curit|devops|grc|conform/.test(text)) {
+  if (/sre|whm|cpanel|soc|s[eé]curit|devops|grc|conform|scan|vuln|aegis|radar|perf|swift/.test(text)) {
     return { delegation: 'approval', permissions: [allow(ACTION.readAnalytics), blocked(ACTION.spend), blocked(ACTION.editBilling)] }
   }
   if (/tech|développ|develop|ingén|ingen|cto|logiciel/.test(text)) {
@@ -172,12 +173,18 @@ function person(
   traits: string[],
 ): RoleDraft {
   const access = accessFor(role, department)
+  const connectors = toolsFor(role, department)
+  const ztcTools = ztcDevoidToolsOf(firstName)
+  const toolIds = ztcTools.length
+    ? [...new Set([...connectors, 'devoid' as const])]
+    : connectors
+  const ztcSkill = ztcTools.length ? ztcSkillsOf(firstName) : []
   return {
     firstName,
     lastName,
     role,
     mission,
-    skills,
+    skills: [...new Set([...(ztcSkill.length ? ztcSkill : skills), ...skills])].slice(0, 8),
     traits,
     tone: toneFor(role, traits),
     hours: hoursFor(role),
@@ -186,7 +193,7 @@ function person(
     delegation: access.delegation,
     permissions: access.permissions,
     objectives: objectivesFor(role, department),
-    toolIds: toolsFor(role, department),
+    toolIds,
     voiceId: agentVoice(firstName),
     face: agentFace(firstName, lastName),
   }
@@ -208,23 +215,32 @@ export function draftFromIntention(intention: string): OrganizationDraft {
   const model = businessModelOf(intention)
   if (model === 'hosting' || /h[eé]berg|hosting|\bztc\b|cpanel|\bwhm\b|fossbilling/.test(heard)) {
     return {
-      name: /ztc/i.test(intention) ? 'ZTC Hosting' : named(intention, 'ZTC Hosting'),
+      name: /ztc/i.test(intention) ? 'ZtcHosting' : named(intention, 'ZtcHosting'),
       intention,
       objective: 'Faire fonctionner l’hébergement, coordonner les employés IA et garder les décisions sensibles sous contrôle humain.',
       sector: 'Hébergement web et cloud',
       businessModel: 'hosting',
       roles: [
-        person('Nova', 'Diallo', 'Support & Customer Success', 'Traiter les tickets, le statut des commandes et les conseils non destructifs.', 'Support', null, ['Tickets', 'Statut commande'], ['à l’écoute', 'prudent']),
+        person('Nova', 'Diallo', 'Support & Customer Success', 'Traiter les tickets, recevoir les escalades DEVOID et renvoyer la réponse au chat client.', 'Support', null, ['Tickets', 'DEVOID', 'Escalades'], ['à l’écoute', 'prudent']),
+        person('Devoid', 'ZTC', 'Customer AI Operator', 'Chat client du site. Escalade vers Nova si besoin, puis restitue la réponse Support.', 'Support', 'Support & Customer Success', ['Chat site', 'Escalade Support'], ['clair', 'prudent']),
+        person('Funnel', 'Moreau', 'Visitor Flow & Prospects', 'Compter les visiteurs ztchosting.com, les qualifier en prospects et produire des rapports détaillés.', 'Flux visiteurs', null, ['Visiteurs', 'Prospects', 'Rapports'], ['analytique', 'méthodique']),
         person('Orion', 'Keller', 'SRE / Infrastructure', 'Surveiller incidents, latence et capacité. Lecture des métriques seulement.', 'Opérations', null, ['Incidents', 'Latence WHM'], ['calme', 'précis']),
         person('Vega', 'Moreau', 'Hosting & WHM', 'Comptes cPanel, quotas et erreurs de provisionnement, dans un périmètre borné.', 'Hébergement', null, ['WHM', 'Quotas', 'SSL'], ['méthodique', 'prudent']),
         person('Lyra', 'Benali', 'Domains & DNS', 'Domaines, DNS et certificats. Changements sensibles en approbation.', 'Domaines & DNS', null, ['Registrar', 'DNS', 'SSL'], ['précis', 'rigoureux']),
         person('Echo', 'Santos', 'Mail & Deliverability', 'Boîtes, MX/SPF/DKIM et diagnostics e-mail limités au domaine prouvé.', 'Messagerie', null, ['MX', 'Délivrabilité'], ['méthodique', 'calme']),
-        person('Helix', 'Park', 'Cloud / VPS', 'VPS seulement si le provider est réellement connecté. Pas de promesse non livrable.', 'Cloud / VPS', null, ['VPS', 'Quotas'], ['prudent', 'clair']),
+        person('Helix', 'Park', 'Cloud / VPS / LLM', 'VPS seulement si la boutique n’est plus « coming soon ». LLM privés = lecture du SKU, pas un déploiement fantôme.', 'Cloud / VPS', null, ['VPS', 'LLM privés'], ['prudent', 'clair']),
         person('Cipher', 'Nguyen', 'Security & SOC', 'Alertes et investigations. Confinement selon runbooks approuvés.', 'Sécurité', null, ['SOC', 'Vulnérabilités'], ['vigilant', 'discret']),
         person('Ledger', 'Rousseau', 'Billing & Finance Ops', 'Factures et renouvellements en lecture. Remboursements sous validation.', 'Facturation', null, ['FOSSBilling', 'Rapprochement'], ['prudent', 'précis']),
-        person('Forge', 'Martin', 'DevOps & Release', 'CI/CD et rollback. Production seulement avec contrôle.', 'DevOps', null, ['CI', 'Ansible'], ['rigoureux', 'calme']),
+        person('Forge', 'Martin', 'DevOps & Release', 'n8n / OpenClaw hébergés, CI et rollback. Production seulement avec contrôle.', 'DevOps', null, ['n8n', 'OpenClaw', 'CI'], ['rigoureux', 'calme']),
         person('Pulse', 'Favre', 'Growth & Product', 'Parcours clients et analyses agrégées. Jamais d’envoi massif non approuvé.', 'Produit', null, ['Parcours', 'Produit'], ['curieux', 'clair']),
         person('Sage', 'Aubert', 'GRC / Compliance', 'Risques et preuves. Pas de validation juridique autonome.', 'Conformité', null, ['RGPD', 'Preuves'], ['prudent', 'documenté']),
+        person('Radar', 'Ito', 'Surface Scan', 'Scanner la surface publique de ztchosting.com : en-têtes, TLS, endpoints guest. Aucun exploit.', 'Sécurité', 'Security & SOC', ['Scan public', 'En-têtes TLS', 'devoid'], ['vigilant', 'méthodique']),
+        person('Aegis', 'Khan', 'Vulnerability Research', 'Lister les écarts de durcissement observés (HSTS, CSP). Lecture seule, pas de PoC offensif.', 'Sécurité', 'Security & SOC', ['Durcissement', 'HSTS', 'CSP'], ['prudent', 'précis']),
+        person('Swift', 'Costa', 'Site Performance', 'Mesurer TTFB et disponibilité de l’accueil, /order, /login et des APIs guest.', 'Performance', 'SRE / Infrastructure', ['TTFB', 'Disponibilité', 'HTTP'], ['précis', 'calme']),
+        person('Flare', 'Morel', 'Ads Visual Designer', 'Générer les images marketing (FLUX) des offres ZTC avec le prix live FOSSBilling. Jamais un prix inventé.', 'Marketing', null, ['Images FLUX', 'SKU live', 'Bannières'], ['créatif', 'exigeant']),
+        person('Clip', 'Nguyen', 'Promo Video Producer', 'Produire les vidéos et clips promotionnels du produit (hébergement, SKU IA). Pas de SLA inventé.', 'Marketing', 'Ads Visual Designer', ['Vidéo promo', 'Storyboard', 'Film'], ['visuel', 'rythmé']),
+        person('Boost', 'Keller', 'Traffic & Acquisition', 'Augmenter le trafic client vers ztchosting.com et /order : SEO, landing, campagnes. Mesure avant promesse.', 'Marketing', 'Ads Visual Designer', ['Trafic', 'SEO', 'Acquisition'], ['analytique', 'orienté résultat']),
+        person('Muse', 'Bernard', 'Campaign Copywriter', 'Rédiger accroches, posts et briefs campagne à partir du catalogue live. Ton marque ZTC.', 'Marketing', 'Ads Visual Designer', ['Copy', 'Campagnes', 'Contenu'], ['clair', 'créatif']),
       ],
     }
   }
@@ -387,7 +403,7 @@ function guard(intention: string, draft: OrganizationDraft): OrganizationDraft {
 export const ORGANIZATION_PLAN_PROMPT = `Tu es le planificateur d'ATLAS. Tu identifies d'abord le secteur et le business model, puis tu dessines l'organisation. Tu réponds uniquement avec un objet JSON, sans texte autour.
 Schéma :
 {"name":"nom court","sector":"secteur","businessModel":"saas|marketplace|agence|ecommerce|freelance|clinique|immobilier|jeu|autre","objective":"une phrase d'objectif mesurable","departments":[{"name":"département","agents":[{"firstName":"prénom","lastName":"nom","role":"poste","mission":"une phrase","skills":["compétence"],"traits":["analytique"],"tone":"formel|direct|pédagogique|professionnel","hours":"9h–18h, lundi–vendredi","tools":["gmail","analytics"],"objectives":[{"label":"KPI","metric":"unité","target":"chiffre","dueAt":"2026-12-31"}],"reportsToRole":null}]}]}
-Règles : 3 à 6 départements, 4 à 12 employés, prénoms et noms français, postes adaptés au métier ET au business model. Hiérarchie réelle : reportsToRole est le poste exact du responsable, ou null pour un chef de département. Chaque agent a 2 à 4 skills, 1 à 3 traits, 1 à 2 KPIs chiffrés et datés, et 1 à 3 outils parmi gmail,outlook,slack,teams,google_calendar,github,gitlab,jira,linear,google_drive,notion,hubspot,stripe,analytics,n8n.
+Rules: 3 to 6 departments, 4 to 12 employees, English first names and last names, roles fit the craft AND the business model. Real hierarchy: reportsToRole is the exact manager role, or null for a department head. Each agent has 2 to 4 skills, 1 to 3 traits, 1 to 2 dated numeric KPIs, and 1 to 3 tools among gmail,outlook,slack,teams,google_calendar,github,gitlab,jira,linear,google_drive,notion,hubspot,stripe,analytics,n8n. Primary language of all text fields: English.
 SaaS : Produit, Croissance, Revenu, Succès client. Marketplace : Offre, Demande, Ops, Produit. Agence : Clients, Production, Croissance. E-commerce : Offre, Acquisition, Ops, Finance. Clinique : soins. Immobilier : ventes. Jeux : création + technique.
 N'invente aucun outil déjà connecté : tu assigns seulement les outils utiles au poste.
 Le champ name est une marque courte (2 à 4 mots), jamais le début de la phrase de l'utilisateur.`

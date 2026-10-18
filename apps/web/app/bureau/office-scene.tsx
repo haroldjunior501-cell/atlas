@@ -655,7 +655,7 @@ export function OfficeScene({
             if (life.timer <= 0) {
               life.timer = nextDelay(life)
               if (status !== 'offline' && trips < maxTrips && !busy.has(id)) {
-                const errand = pickErrand(layout, life.agent, { busy, task: liveTasks?.[id] })
+                const errand = pickErrand(layout, life.agent, { busy, task: liveTasks?.[id], requireTask: true })
                 if (errand) {
                   begin(life, errand)
                   trips += 1

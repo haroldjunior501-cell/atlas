@@ -85,9 +85,15 @@
   height: 30px;
   place-items: center;
   border-radius: 9px;
-  background: #0f172a;
-  color: #fff;
-  font-weight: 900;
+  background: #0b1220;
+  overflow: hidden;
+}
+
+.atlasMark img {
+  display: block;
+  width: 22px;
+  height: 22px;
+  object-fit: contain;
 }
 
 /* ---- Tableau */

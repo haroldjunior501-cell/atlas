@@ -8,6 +8,8 @@ test('le catalogue couvre mail, calendrier, CRM, machine et MCP', () => {
   assert.ok(connectorOf('gmail')?.capabilities.includes('Envoyer'))
   assert.equal(connectorOf('n8n')?.category, 'automation')
   assert.equal(connectorOf('machine')?.category, 'machine')
+  assert.equal(connectorOf('evolus')?.category, 'automation')
+  assert.ok(connectorOf('evolus')?.capabilities.includes('AI Tools'))
 })
 
 test('MCP refuse les URL internes et les commandes machine dangereuses', () => {

@@ -6,10 +6,10 @@ import { nemotron } from '@/lib/nemotron'
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 
-const SLIDES_SYSTEM = `Tu prépares une présentation PowerPoint.
-Réponds UNIQUEMENT avec un JSON valide (pas de markdown autour) :
+const SLIDES_SYSTEM = `You prepare a PowerPoint presentation.
+Reply ONLY with valid JSON (no surrounding markdown):
 {"title":"...","slides":[{"title":"...","bullets":["...","..."]}]}
-Règles : 5 à 10 slides, titres courts, 3 à 6 puces max par slide, langue de l'utilisateur.`
+Rules: 5 to 10 slides, short titles, 3 to 6 bullets max per slide. Primary language: English; mirror the user if they clearly use another language.`
 
 export async function POST(request: Request) {
   const body = await request.json().catch(() => null) as {

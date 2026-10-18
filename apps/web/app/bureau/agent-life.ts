@@ -78,9 +78,10 @@ function frontOf(prop: OfficeProp, room: OfficeRoom | undefined): Point {
 export function pickErrand(
   layout: OfficeLayout,
   agent: OfficeAgentPlacement,
-  options: { busy: Set<string>; task?: string; random?: () => number },
+  options: { busy: Set<string>; task?: string; random?: () => number; /** Sans mission live : reste au poste (pas d’ambiance inventée). */ requireTask?: boolean },
 ): Errand | null {
   const random = options.random ?? Math.random
+  if (options.requireTask && !options.task?.trim()) return null
   const rooms = new Map(layout.rooms.map((room) => [room.id, room]))
   const home = rooms.get(agent.roomId)
   const play = playbookOf(agent, home)

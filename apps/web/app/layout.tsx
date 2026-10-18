@@ -10,12 +10,12 @@ const outfit = Outfit({
 
 export const metadata: Metadata = {
   title: 'ATLAS — AI OS for Organizations',
-  description: 'Concevez, personnalisez et pilotez une organisation complète d’employés IA.',
+  description: 'Design, customize, and run a full organization of AI employees.',
 }
 
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (
-    <html lang="fr">
+    <html lang="en">
       <body className={outfit.className}>{children}</body>
     </html>
   )

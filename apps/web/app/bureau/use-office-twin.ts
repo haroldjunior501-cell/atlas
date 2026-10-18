@@ -2,12 +2,11 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import {
-  ARCHETYPE_IDS,
-  detectArchetype,
   generateLayout,
-  generateOperations,
+  liveProductOperations,
   sampleOrganization,
   SPACE_CATALOG,
+  ZTC_NAME,
   type OfficeArchetype,
   type OfficeExtraSpace,
   type OfficeSpaceKind,
@@ -15,6 +14,7 @@ import {
   type OfficeOps,
   type OfficeOrgInput,
   type OpsAction,
+  type OpsProductLive,
 } from '@atlas/domain'
 
 export type Live = { openTasks: number; pendingDecisions: number; activeAgents: number }
@@ -46,9 +46,20 @@ export interface OfficeTwin {
 
 type Spaces = { added: OfficeExtraSpace[]; removed: string[] }
 
+type ZtcOpsPayload = {
+  live?: {
+    products?: Array<{ title: string; priceFrom: number | null; comingSoon?: boolean; unit?: string }>
+    devoid?: { ok?: boolean; model?: string }
+  }
+  ops?: {
+    scan?: { status?: number; server?: string; missing?: string[] }
+    speed?: Array<{ path: string; ttfbMs: number; ok: boolean }>
+  }
+}
+
 /**
- * Jumeau numérique partagé par le Bureau 3D et la section Factures :
- * même environnement, mêmes dossiers, même plan d’orchestration ATLAS.
+ * Jumeau numérique : layout 3D + opérations produit LIVE (FOSSBilling / DEVOID / missions).
+ * Aucune facture ni KPI inventés.
  */
 export function useOfficeTwin(
   org: OfficeOrgInput | null,
@@ -60,10 +71,13 @@ export function useOfficeTwin(
   const spacesKey = `atlas-office-spaces:${org?.id ?? 'demo'}`
   const [choice, setChoice] = useState<OfficeArchetype | 'auto'>('auto')
   const [spaces, setSpaces] = useState<Spaces>({ added: [], removed: [] })
+  const [product, setProduct] = useState<OpsProductLive | null>(null)
+
   useEffect(() => {
-    const saved = window.localStorage.getItem(storageKey)
-    setChoice(saved && (ARCHETYPE_IDS as string[]).includes(saved) ? (saved as OfficeArchetype) : 'auto')
+    setChoice('hosting')
+    window.localStorage.setItem(storageKey, 'hosting')
   }, [storageKey])
+
   useEffect(() => {
     try {
       const saved = JSON.parse(window.localStorage.getItem(spacesKey) || 'null') as Spaces | null
@@ -73,37 +87,53 @@ export function useOfficeTwin(
     }
   }, [spacesKey])
 
+  useEffect(() => {
+    let cancel = false
+    const pull = () => {
+      void fetch('/api/atlas/ztc')
+        .then((response) => response.json())
+        .then((body: ZtcOpsPayload) => {
+          if (cancel) return
+          setProduct({
+            products: body.live?.products ?? [],
+            devoidOk: body.live?.devoid?.ok ?? null,
+            devoidModel: body.live?.devoid?.model ?? null,
+            speed: body.ops?.speed ?? [],
+            scan: body.ops?.scan ?? null,
+          })
+        })
+        .catch(() => {
+          if (!cancel) setProduct((prev) => prev ?? { products: [], devoidOk: null, speed: [], scan: null })
+        })
+    }
+    pull()
+    const timer = window.setInterval(pull, 15000)
+    return () => { cancel = true; window.clearInterval(timer) }
+  }, [])
+
   const saveSpaces = useCallback((next: Spaces) => {
     setSpaces(next)
     window.localStorage.setItem(spacesKey, JSON.stringify(next))
   }, [spacesKey])
 
-  const detected = useMemo<OfficeArchetype>(() => {
-    if (!org) return 'car_dealership'
-    return detectArchetype({
-      name: org.name,
-      sector: org.sector,
-      businessModel: org.businessModel,
-      intention: org.intention,
-      departments: org.departments.map((d) => d.name),
-      roles: org.departments.flatMap((d) => d.agents.map((a) => a.role)),
-    })
-  }, [org])
-  const archetype = choice === 'auto' ? detected : choice
+  const detected = useMemo<OfficeArchetype>(() => 'hosting', [])
+  const archetype: OfficeArchetype = 'hosting'
 
   const layout = useMemo(() => {
     if (org) return generateLayout({ ...org, archetype, spaces }, 1)
     const sample = sampleOrganization(archetype)
     return generateLayout({ id: `demo-${archetype}`, ...sample, archetype, spaces }, 1)
   }, [org, archetype, spaces])
-  const ops = useMemo(() => {
-    const base = generateOperations(layout, { live: org ? live : null })
-    if (!realTasks) return base
-    const tasks = { ...base.tasks }
-    for (const agent of layout.agents) if (realTasks[agent.id]) tasks[agent.id] = realTasks[agent.id]!
-    return { ...base, tasks }
-  }, [layout, live, org, realTasks])
-  const name = org?.name ?? sampleOrganization(archetype).name
+
+  const ops = useMemo(() => liveProductOperations(layout, {
+    live: org ? live : null,
+    product: {
+      ...(product ?? {}),
+      realTasks: realTasks ?? {},
+    },
+  }), [layout, live, org, product, realTasks])
+
+  const name = ZTC_NAME
   const extraRoomIds = useMemo(
     () => new Set(spaces.added.map((space) => layout.rooms.find((room) => room.id.endsWith(`-room-x-${space.id}`))?.id).filter((id): id is string => Boolean(id))),
     [spaces, layout.rooms],
@@ -132,18 +162,16 @@ export function useOfficeTwin(
   const [runs, setRuns] = useState<Record<string, ActionRun>>({})
   useEffect(() => setRuns({}), [layout.id])
 
-  const pickChoice = useCallback((next: string) => {
-    const value = next as OfficeArchetype | 'auto'
-    setChoice(value)
-    if (value === 'auto') window.localStorage.removeItem(storageKey)
-    else window.localStorage.setItem(storageKey, value)
+  const pickChoice = useCallback((_next: string) => {
+    setChoice('hosting')
+    window.localStorage.setItem(storageKey, 'hosting')
   }, [storageKey])
 
   const run = useCallback(async (action: OpsAction) => {
     if (!action.agentId) return 'aucun agent disponible'
     setRuns((prev) => ({ ...prev, [action.id]: { state: 'running', note: `Transmis à ${action.agentName}…` } }))
     try {
-      const note = org ? await dispatch(action.agentId, action.mission) : 'simulée (démonstration)'
+      const note = org ? await dispatch(action.agentId, action.mission) : 'organisation absente'
       const failed = /introuvable|non transmise|refus/i.test(note)
       setRuns((prev) => ({ ...prev, [action.id]: { state: failed ? 'failed' : 'done', note: `${action.agentName} · ${note}` } }))
       return note

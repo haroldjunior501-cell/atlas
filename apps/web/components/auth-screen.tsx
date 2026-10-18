@@ -106,6 +106,8 @@ export function AuthScreen({ mode }: { mode: 'signup' | 'login' }) {
   const router = useRouter()
   const signup = mode === 'signup'
   const codeRefs = useRef<Array<HTMLInputElement | null>>([])
+  const emailRef = useRef<HTMLInputElement | null>(null)
+  const passwordRef = useRef<HTMLInputElement | null>(null)
   const [step, setStep] = useState<SignupStep>('email')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -127,6 +129,26 @@ export function AuthScreen({ mode }: { mode: 'signup' | 'login' }) {
   useEffect(() => {
     if (step === 'code') codeRefs.current[0]?.focus()
   }, [step])
+
+  // Browser autofill paints values without firing onChange — sync DOM → React so the button unlocks.
+  useEffect(() => {
+    const pull = () => {
+      const nextEmail = emailRef.current?.value ?? ''
+      const nextPassword = passwordRef.current?.value ?? ''
+      if (nextEmail) setEmail((current) => (current === nextEmail ? current : nextEmail))
+      if (nextPassword) setPassword((current) => (current === nextPassword ? current : nextPassword))
+    }
+    pull()
+    const id = window.setInterval(pull, 400)
+    const onFocus = () => pull()
+    window.addEventListener('focus', onFocus)
+    document.addEventListener('animationstart', pull, true)
+    return () => {
+      window.clearInterval(id)
+      window.removeEventListener('focus', onFocus)
+      document.removeEventListener('animationstart', pull, true)
+    }
+  }, [])
 
   function issueCode() {
     const next = makeCode()
@@ -162,12 +184,30 @@ export function AuthScreen({ mode }: { mode: 'signup' | 'login' }) {
 
   async function submit(event: FormEvent) {
     event.preventDefault()
-    if (!ready || pending) return
-    if (step === 'email' && signup) {
+    if (pending) return
+
+    const liveEmail = (emailRef.current?.value || email).trim()
+    const livePassword = passwordRef.current?.value || password
+    if (liveEmail !== email) setEmail(liveEmail)
+    if (livePassword !== password) setPassword(livePassword)
+
+    if (!signup) {
+      if (!validEmail(liveEmail)) {
+        setError('Indiquez un email valide.')
+        return
+      }
+      if (livePassword.trim().length < 8) {
+        setError('Le mot de passe doit contenir au moins 8 caractères.')
+        return
+      }
+    } else if (step === 'email') {
+      if (!validEmail(liveEmail)) {
+        setError('Indiquez un email valide.')
+        return
+      }
       issueCode()
       return
-    }
-    if (step === 'code' && signup) {
+    } else if (step === 'code') {
       if (enteredCode !== sentCode) {
         setError('Ce code ne correspond pas. Vérifiez l’email ou renvoyez-en un.')
         return
@@ -175,21 +215,26 @@ export function AuthScreen({ mode }: { mode: 'signup' | 'login' }) {
       setError('')
       setStep('profile')
       return
+    } else if (!profileReady) {
+      setError('Complétez le nom, le mot de passe (8+ caractères) et l’organisation.')
+      return
     }
+
     setPending(true)
+    setError('')
     try {
       const response = await fetch(`${gatewayUrl}/v1/auth/${signup ? 'register' : 'login'}`, {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify(
           signup
-            ? { name: fullName.trim(), email: email.trim(), password, organization: orgName.trim() }
-            : { email: email.trim(), password },
+            ? { name: fullName.trim(), email: liveEmail, password: livePassword, organization: orgName.trim() }
+            : { email: liveEmail, password: livePassword },
         ),
       })
       const payload = (await response.json()) as { id?: string; name?: string; organization?: string; error?: string }
       if (!response.ok || !payload.id) {
-        setError(payload.error ?? 'Le compte n’a pas pu être enregistré.')
+        setError(payload.error ?? (signup ? 'Le compte n’a pas pu être enregistré.' : 'Email ou mot de passe incorrect.'))
         setPending(false)
         return
       }
@@ -329,12 +374,17 @@ export function AuthScreen({ mode }: { mode: 'signup' | 'login' }) {
             <label className={styles.field}>
               <span>{signup ? 'Email professionnel' : 'Email'}</span>
               <input
+                ref={emailRef}
                 type="email"
                 name="email"
                 autoComplete="email"
                 value={email}
                 onChange={(event) => {
                   setEmail(event.target.value)
+                  setError('')
+                }}
+                onInput={(event) => {
+                  setEmail(event.currentTarget.value)
                   setError('')
                 }}
               />
@@ -345,6 +395,7 @@ export function AuthScreen({ mode }: { mode: 'signup' | 'login' }) {
             <label className={styles.field}>
               <span>Mot de passe</span>
               <input
+                ref={passwordRef}
                 type="password"
                 name="password"
                 autoComplete="current-password"
@@ -353,12 +404,21 @@ export function AuthScreen({ mode }: { mode: 'signup' | 'login' }) {
                   setPassword(event.target.value)
                   setError('')
                 }}
+                onInput={(event) => {
+                  setPassword(event.currentTarget.value)
+                  setError('')
+                }}
               />
             </label>
           ) : null}
 
-          <button className={ready && !pending ? `${styles.submit} ${styles.submitReady}` : styles.submit} type="submit" disabled={!ready || pending}>
-            {signup && step === 'profile' ? 'Créer le compte' : signup && step === 'code' ? 'Valider' : signup ? 'Continuer' : 'Se connecter'}
+          <button
+            className={ready && !pending ? `${styles.submit} ${styles.submitReady}` : styles.submit}
+            type="submit"
+            disabled={pending}
+            aria-busy={pending}
+          >
+            {pending ? 'Connexion…' : signup && step === 'profile' ? 'Créer le compte' : signup && step === 'code' ? 'Valider' : signup ? 'Continuer' : 'Se connecter'}
           </button>
           {error ? <p className={styles.error}>{error}</p> : null}
           {signup && step === 'email' ? (

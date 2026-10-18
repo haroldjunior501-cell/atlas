@@ -118,6 +118,16 @@ export interface OpsLive {
   activeAgents: number
 }
 
+/** Preuves produit live (FOSSBilling / DEVOID / TTFB / scan) — jamais inventées. */
+export interface OpsProductLive {
+  products?: Array<{ title: string; priceFrom: number | null; comingSoon?: boolean; unit?: string }>
+  devoidOk?: boolean | null
+  devoidModel?: string | null
+  speed?: Array<{ path: string; ttfbMs: number; ok: boolean }>
+  scan?: { status?: number; server?: string; missing?: string[] } | null
+  realTasks?: Record<string, string>
+}
+
 export function formatChf(amount: number): string {
   const rounded = Math.round(amount)
   const digits = String(Math.abs(rounded)).replace(/\B(?=(\d{3})+(?!\d))/g, '’')
@@ -286,15 +296,17 @@ const TEMPLATES: Record<OfficeArchetype, Template> = {
     recordsTitle: 'Commandes & factures',
     prefix: 'ZTC',
     client: 'companies',
-    subjects: ['Hébergement NVMe', 'Nom de domaine', 'Messagerie professionnelle', 'VPS', 'Renouvellement SSL', 'Sauvegarde', 'Ticket support', 'Incident DNS'],
+    subjects: ['Starter Hosting', 'Business Hosting', 'Premium Hosting', 'Nom de domaine', 'Messagerie professionnelle', 'n8n hébergé', 'Renouvellement SSL', 'Sauvegarde', 'Ticket support', 'Incident DNS', 'Scan public', 'Écart HSTS', 'TTFB accueil', 'Visuel Business Hosting', 'Vidéo promo Starter', 'Plan trafic /order', 'Accroches campagne Muse'],
     amount: [6, 240],
     stages: ['Commande', 'Paiement', 'Provisionnement', 'DNS / SSL', 'Livraison'],
     assetsTitle: 'Nœuds & comptes',
     tasks: {
-      desk: ['Relance renouvellement', 'Rapprochement facture', 'Revue de commande'],
-      counter: ['Ticket client', 'Statut de commande', 'Onboarding site'],
-      rack: ['Contrôle quota WHM', 'Vérifier SSL', 'Diagnostic compte'],
-      meeting: ['Escalade incident', 'Revue de capacité'],
+      desk: ['Relance renouvellement FOSSBilling', 'Rapprochement facture Ledger', 'Revue SKU Pulse', 'Brief Muse + Flare (prix live)'],
+      counter: ['Ticket Nova', 'Onboarding Starter', 'Orchestrer DEVOID', 'Statut commande boutique'],
+      rack: ['Contrôle quota Vega', 'Vérifier AutoSSL', 'Mesure TTFB Swift', 'Scan en-têtes Radar'],
+      meeting: ['Escalade Orion', 'Revue capacité', 'Checklist Aegis HSTS/CSP', 'Hand-off Cipher'],
+      lab: ['Durcissement Aegis (lecture seule)', 'Scan surface Radar', 'Aucun PoC'],
+      creative_studio: ['Image Flare Business Hosting', 'Vidéo Clip Starter', 'Plan trafic Boost /order', 'Copy Muse campagne', 'Prix FOSSBilling exact'],
     },
   },
   corporate: {
@@ -374,6 +386,206 @@ function listNumbers(records: OpsRecord[]) {
   return records.length > 3 ? `${shown} et ${records.length - 3} autres` : shown
 }
 
+/**
+ * Opérations produit ZTC : uniquement des données observées.
+ * Pas de factures inventées, pas de CA fantôme, pas de tâches aléatoires.
+ */
+export function liveProductOperations(
+  layout: OfficeLayout,
+  opts: { live?: OpsLive | null; product?: OpsProductLive | null } = {},
+): OfficeOps {
+  const product = opts.product ?? {}
+  const live = opts.live
+  const products = product.products ?? []
+  const realTasks = product.realTasks ?? {}
+  const journey = ['Commande', 'Paiement', 'Provisionnement', 'DNS / SSL', 'Livraison']
+
+  const tasks: Record<string, string> = {}
+  for (const agent of layout.agents) {
+    tasks[agent.id] = realTasks[agent.id]?.trim()
+      || (agent.status === 'working' ? `Mission ${agent.role}` : `En poste · ${agent.role}`)
+  }
+
+  const zones: Record<string, OpsZone> = {}
+  for (const room of layout.rooms) {
+    const inRoom = layout.agents.filter((agent) => agent.roomId === room.id)
+    const busy = inRoom.filter((agent) => agent.status === 'working' || Boolean(realTasks[agent.id])).length
+    const roomTasks = inRoom.map((agent) => realTasks[agent.id]).filter(Boolean) as string[]
+    const catalogLines: OpsInventoryLine[] = /marketing|produit|studio|cr[eé]a/i.test(room.name)
+      ? products.slice(0, 8).map((item) => ({
+          name: item.title,
+          ref: item.comingSoon ? 'SOON' : (item.priceFrom == null ? '—' : `$${item.priceFrom}`),
+          qty: 1,
+          unit: item.unit || 'sku',
+          low: Boolean(item.comingSoon),
+        }))
+      : []
+    zones[room.id] = {
+      roomId: room.id,
+      departmentId: room.departmentId,
+      finance: { records: 0, billed: 0, pending: 0, overdue: 0 },
+      title: room.name,
+      subtitle: KIND_LABEL[room.kind] ?? room.kind,
+      metrics: [
+        { label: 'Agents', value: String(inRoom.length) },
+        { label: 'En mission', value: String(busy) },
+        { label: 'Missions live', value: String(roomTasks.length) },
+      ],
+      inventory: catalogLines,
+      inventoryTitle: catalogLines.length ? 'SKU FOSSBilling (live)' : 'Équipements',
+    }
+  }
+
+  const skuLive = products.filter((item) => !item.comingSoon).length
+  const orderSpeed = product.speed?.find((point) => point.path === '/order')
+  const missing = product.scan?.missing?.length ?? 0
+  const kpis: OpsKpi[] = [
+    {
+      id: 'sku',
+      label: 'SKU live',
+      value: products.length ? String(skuLive) : '—',
+      hint: products.length ? `${products.length} au catalogue` : 'FOSSBilling…',
+      tone: 'accent',
+      live: true,
+    },
+    {
+      id: 'devoid',
+      label: 'DEVOID',
+      value: product.devoidOk == null ? '—' : product.devoidOk ? 'En ligne' : 'Hors ligne',
+      hint: product.devoidModel || undefined,
+      tone: product.devoidOk ? 'good' : product.devoidOk === false ? 'warn' : 'neutral',
+      live: true,
+    },
+    {
+      id: 'ttfb',
+      label: 'TTFB /order',
+      value: orderSpeed ? `${orderSpeed.ttfbMs} ms` : '—',
+      tone: orderSpeed && !orderSpeed.ok ? 'warn' : 'neutral',
+      live: true,
+    },
+    {
+      id: 'scan',
+      label: 'Scan public',
+      value: product.scan?.status != null ? `HTTP ${product.scan.status}` : '—',
+      hint: missing ? `${missing} en-tête${missing > 1 ? 's' : ''} manquant${missing > 1 ? 's' : ''}` : product.scan?.server || undefined,
+      tone: missing ? 'warn' : 'good',
+      live: true,
+    },
+  ]
+  if (live) {
+    kpis.push(
+      { id: 'tasks', label: 'Tâches ouvertes', value: String(live.openTasks), tone: 'neutral', live: true },
+      { id: 'agents', label: 'Agents actifs', value: `${live.activeAgents}/${layout.agents.length}`, tone: 'good', live: true },
+    )
+  } else {
+    const working = layout.agents.filter((agent) => agent.status === 'working' || Boolean(realTasks[agent.id])).length
+    kpis.push({ id: 'agents', label: 'Agents actifs', value: `${working}/${layout.agents.length}`, tone: 'good', live: true })
+  }
+
+  const homeRoom = layout.rooms.find((room) => /produit|marketing|studio/i.test(room.name))?.id
+    ?? layout.rooms[0]?.id
+    ?? ''
+  const assets: OpsAsset[] = products.slice(0, 12).map((item, index) => ({
+    id: `sku-${index}`,
+    name: item.title,
+    detail: item.comingSoon ? 'Coming soon (observé)' : 'Catalogue FOSSBilling',
+    status: item.comingSoon ? 'soon' : item.priceFrom == null ? '—' : item.priceFrom === 0 ? 'gratuit' : `$${item.priceFrom}${item.unit ? `/${item.unit}` : ''}`,
+    tone: item.comingSoon ? 'warn' : 'good',
+    roomId: homeRoom,
+    agentName: undefined,
+  }))
+
+  const stages: OpsStage[] = journey.map((label, index) => ({ id: `stage-${index}`, label, count: 0 }))
+
+  const actions: OpsAction[] = []
+  const byName = (re: RegExp) => layout.agents.find((agent) => re.test(`${agent.name} ${agent.role}`))
+  if (orderSpeed && orderSpeed.ttfbMs > 800) {
+    const swift = byName(/swift|perf/i)
+    actions.push({
+      id: 'live-swift-ttfb',
+      kind: 'dispatch',
+      title: 'Swift · TTFB /order élevé',
+      detail: `${orderSpeed.ttfbMs} ms observés`,
+      priority: 'high',
+      agentId: swift?.id ?? null,
+      agentName: swift?.name ?? 'Swift',
+      roomId: swift?.roomId ?? null,
+      recordIds: [],
+      mission: `Mesure et diagnostique le TTFB de ztchosting.com/order (${orderSpeed.ttfbMs} ms observés). Chiffres live seulement, aucune écriture.`,
+    })
+  }
+  if (missing > 0) {
+    const radar = byName(/radar|aegis|s[eé]curit/i)
+    actions.push({
+      id: 'live-radar-headers',
+      kind: 'dispatch',
+      title: 'Radar · en-têtes manquants',
+      detail: (product.scan?.missing ?? []).slice(0, 3).join(', '),
+      priority: 'normal',
+      agentId: radar?.id ?? null,
+      agentName: radar?.name ?? 'Radar',
+      roomId: radar?.roomId ?? null,
+      recordIds: [],
+      mission: `Scan public : liste les en-têtes manquants (${(product.scan?.missing ?? []).join(', ')}). Lecture seule, aucun PoC.`,
+    })
+  }
+  if (product.devoidOk === false) {
+    const devoid = byName(/devoid|nova|support/i)
+    actions.push({
+      id: 'live-devoid-down',
+      kind: 'dispatch',
+      title: 'DEVOID hors ligne',
+      detail: 'Health check en échec',
+      priority: 'high',
+      agentId: devoid?.id ?? null,
+      agentName: devoid?.name ?? 'Devoid',
+      roomId: devoid?.roomId ?? null,
+      recordIds: [],
+      mission: 'Vérifie DEVOID /health et le chat client ztchosting.com. Ne simule pas un agent en ligne.',
+    })
+  }
+  for (const agent of layout.agents) {
+    const mission = realTasks[agent.id]
+    if (!mission) continue
+    actions.push({
+      id: `live-task-${agent.id}`,
+      kind: 'dispatch',
+      title: `${agent.name.split(' ')[0]} · mission live`,
+      detail: mission,
+      priority: 'normal',
+      agentId: agent.id,
+      agentName: agent.name,
+      roomId: agent.roomId,
+      recordIds: [],
+      mission,
+    })
+  }
+  actions.sort((a, b) => (a.priority === b.priority ? 0 : a.priority === 'high' ? -1 : 1))
+
+  const open = live?.openTasks ?? Object.keys(realTasks).length
+  const active = live?.activeAgents ?? layout.agents.filter((agent) => agent.status === 'working' || Boolean(realTasks[agent.id])).length
+  const summary = products.length
+    ? `Produit live · ${skuLive} SKU FOSSBilling · DEVOID ${product.devoidOk ? 'en ligne' : product.devoidOk === false ? 'hors ligne' : '…'} · ${active}/${layout.agents.length} agents · ${open} mission${open > 1 ? 's' : ''} · ${actions.length} action${actions.length > 1 ? 's' : ''}`
+    : `Équipe ${layout.agents.length} · lecture produit en cours · aucune donnée inventée`
+
+  return {
+    atlas: { summary, actions: actions.slice(0, 12) },
+    archetype: layout.archetype,
+    label: layout.archetypeLabel,
+    currency: 'CHF',
+    simulated: false,
+    kpis,
+    recordsTitle: 'Factures FOSSBilling',
+    records: [],
+    stages,
+    assetsTitle: 'Catalogue live',
+    assets,
+    zones,
+    tasks,
+  }
+}
+
+/** @deprecated Démo uniquement — le bureau ZTC utilise `liveProductOperations`. */
 export function generateOperations(layout: OfficeLayout, opts: { live?: OpsLive | null; now?: Date } = {}): OfficeOps {
   const archetype = layout.archetype
   const tpl = TEMPLATES[archetype]

@@ -50,7 +50,8 @@ export const CONNECTOR_CATALOG: ConnectorDescriptor[] = [
   { provider: 'whm', category: 'hosting', label: 'WHM / cPanel', capabilities: ['Comptes', 'Quotas', 'SSL', 'Sites'], writes: false, mcp: 'https://api.docs.cpanel.net/', hint: 'WHM API 1. Actions sensibles (suspendre, supprimer) toujours en approbation.' },
   { provider: 'cloudflare', category: 'hosting', label: 'Cloudflare', capabilities: ['Zones DNS', 'Cache', 'Enregistrements'], writes: false, mcp: 'https://developers.cloudflare.com/api/', hint: 'Jeton limité aux zones exactes. Prévisualisation avant écriture.' },
   { provider: 'resellerclub', category: 'hosting', label: 'ResellerClub', capabilities: ['Disponibilité', 'Enregistrement', 'Renouvellement'], writes: false, mcp: 'https://manage.resellerclub.com/', hint: 'Transactions payantes bloquées sans accord. Pas de prix inventé.' },
-  { provider: 'devoid', category: 'hosting', label: 'DEVOID', capabilities: ['Santé', 'Opérateur lecture'], writes: false, mcp: 'local://devoid', hint: 'Prototype FastAPI ZTC (/health, /operator). À revalider, jamais un second orchestrateur.' },
+  { provider: 'devoid', category: 'hosting', label: 'DEVOID', capabilities: ['Santé', 'Outils client', 'DNS', 'Achat', 'cPanel', 'E-mail', 'Sécu'], writes: true, mcp: 'local://devoid', hint: 'Mêmes outils que DEVOID (/health → tools). Lecture + prepare/confirm selon le bureau ATLAS. Écritures sensibles en approbation client.' },
+  { provider: 'evolus', category: 'automation', label: 'Evolus', capabilities: ['Agents', 'AI Tools', 'Workflows', 'Knowledge'], writes: true, mcp: 'https://api.evolus.ai/mcp', hint: 'Workspace hackathon : clé + applicationId. Le modèle de l’agent doit être le vLLM AMD de l’équipe.' },
 ]
 
 export const ACTION = {

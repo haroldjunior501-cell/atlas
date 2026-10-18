@@ -144,7 +144,7 @@ Réponds UNIQUEMENT avec un JSON valide (pas de markdown) :
   ],
   "footer": "ligne footer"
 }
-Règles : 3 sections max, français sauf demande contraire, marque forte, pas de jargon IA, pas de "révolutionnaire" / "next-gen".`
+Rules: 3 sections max, English unless asked otherwise, strong brand, no AI jargon, no "revolutionary" / "next-gen".`
 
 export function parseSiteBrief(raw: string, fallbackTopic: string): SiteBrief {
   const text = raw.trim()
@@ -235,7 +235,7 @@ export function buildWebsiteHtml(brief: SiteBrief): string {
   const mailHost = brief.brand.toLowerCase().replace(/[^a-z0-9]+/g, '') || 'studio'
 
   return `<!doctype html>
-<html lang="fr">
+<html lang="en">
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />

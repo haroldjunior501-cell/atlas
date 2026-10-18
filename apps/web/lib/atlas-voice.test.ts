@@ -4,8 +4,8 @@ import { atlasGreeting, directiveFromModel, interpretAtlas, localVoiceReply, spe
 import { rankBySimilarity, translateInstruction, unsafeVerdict } from './nvidia-voice'
 
 test('l’accueil vocal salue par le nom inscrit', () => {
-  assert.equal(atlasGreeting('Harold Martin'), 'Salut Harold Martin, que puis-je faire pour toi ?')
-  assert.equal(atlasGreeting('  '), 'Salut, que puis-je faire pour toi ?')
+  assert.equal(atlasGreeting('Harold Martin'), 'Hi Harold Martin, what can I do for you?')
+  assert.equal(atlasGreeting('  '), 'Hi, what can I do for you?')
 })
 test('Nemotron renvoie une action du studio', () => {
   const directive = directiveFromModel('{"reply":"J’ouvre les missions.","action":{"kind":"navigate","view":"missions"}}')
@@ -24,7 +24,7 @@ test('les ordres de studio ne créent pas une organisation', () => {
   assert.deepEqual(interpretAtlas('mode avancé'), { kind: 'mode', advanced: true })
   assert.equal(interpretAtlas('approuve').kind, 'approve')
   assert.equal(interpretAtlas('montre l’équipe').kind, 'team')
-  assert.equal(interpretAtlas('utilise le modèle SaaS').kind, 'template')
+  assert.deepEqual(interpretAtlas('utilise le modèle SaaS'), { kind: 'template', title: 'ZTC Hosting' })
   assert.equal(interpretAtlas('ajoute un département juridique').kind, 'department')
   assert.equal(interpretAtlas('déplace Sarah vers Marketing').kind, 'move')
 })
@@ -57,6 +57,9 @@ test('ATLAS contrôle les zones, les postes, les outils et le suivi des agents',
   assert.notEqual(interpretAtlas('crée une agence de marketing à Lausanne').kind, 'space')
   assert.notEqual(interpretAtlas('supprime la réunion de demain').kind, 'space')
   assert.equal(interpretAtlas('où en est l’équipe').kind, 'brief')
+  assert.equal(interpretAtlas('que fait mes agent dans le bureau 3D').kind, 'brief')
+  assert.equal(interpretAtlas('que font mes agents').kind, 'brief')
+  assert.equal(interpretAtlas('statut des agents dans le bureau').kind, 'brief')
   assert.deepEqual(interpretAtlas('Atlas, lance une mission d’équipe : je lance une marque de café, analyse 5 concurrents et fais un site'), { kind: 'crew', mission: 'je lance une marque de café, analyse 5 concurrents et fais un site' })
   assert.equal(interpretAtlas('monte une équipe pour comparer trois logiciels de facturation').kind, 'crew')
   assert.equal(interpretAtlas('analyse 4 concurrents de notre boutique').kind, 'crew')
@@ -73,6 +76,12 @@ test('la recherche, le dossier, la tâche et la réunion entre agents sont des o
   assert.equal(meeting.kind, 'meeting')
   if (meeting.kind === 'meeting') assert.deepEqual(meeting.with, ['Marc', 'Sarah'])
   assert.equal(interpretAtlas('lance une tâche prépare le reporting').kind, 'mission')
+})
+
+test('submission pitch starts the guided presentation', () => {
+  assert.equal(interpretAtlas('Start the submission pitch now').kind, 'pitch')
+  assert.equal(interpretAtlas('Present yourself and the ZTC Hosting organization').kind, 'pitch')
+  assert.equal(interpretAtlas('Walk me through ZTC Hosting for the demo video').kind, 'pitch')
 })
 
 test('un appel vide ne fait qu’écouter', () => {
@@ -117,6 +126,7 @@ test('une question pédagogique ou code devient un ordre partenaire', () => {
   assert.equal(interpretAtlas('corrige ce texte').kind, 'transform')
   assert.equal(interpretAtlas('corrige ce code React').kind, 'code')
   assert.equal(speechLang('What is a firewall?'), 'en-US')
+  assert.equal(speechLang(''), 'en-US')
   assert.equal(speechLang('Bonjour, comment puis-je vous aider ?'), 'fr-FR')
   assert.equal(speechLang('Hola, ¿cómo estás?'), 'es-ES')
   assert.equal(speechLang('こんにちは、アトラスです。'), 'ja-JP')

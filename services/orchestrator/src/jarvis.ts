@@ -5,7 +5,7 @@ import { askNim, forecastLoad, localReply } from './nvidia'
 
 export const JARVIS = {
   wakeWord: 'jarvis',
-  language: 'fr-FR',
+  language: 'en-US',
   pipeline: ['listen', 'think', 'speak'],
 } as const
 
@@ -68,7 +68,7 @@ export async function runJarvis(
   const missing = 'Aucune organisation n’est encore composée. Dites : Jarvis, monte une équipe.'
 
   if (intent === 'listen') {
-    return { heard, intent, reply: 'Je vous écoute.', organizationId: organization?.id ?? null }
+    return { heard, intent, reply: 'I'm listening.', organizationId: organization?.id ?? null }
   }
 
   if (intent === 'compose') {
@@ -134,11 +134,13 @@ export async function runJarvis(
   }
 
   if (intent === 'team') {
-    const names = state.agents.slice(0, 5).map((agent) => `${agent.firstName}, ${agent.role}`)
+    const names = state.agents.map((agent) => `${agent.firstName}, ${agent.role}`)
     return {
       heard,
       intent,
-      reply: names.length ? `${names.join('. ')}.` : 'Aucun employé en poste.',
+      reply: names.length
+        ? `ATLAS supervise ${names.length} employés. ${names.join('. ')}.`
+        : 'Aucun employé en poste.',
       organizationId: organization.id,
     }
   }

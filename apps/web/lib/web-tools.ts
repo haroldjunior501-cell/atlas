@@ -52,8 +52,8 @@ export async function webSearch(query: string, limit = 6): Promise<WebHit[]> {
   try {
     const url = new URL('https://html.duckduckgo.com/html/')
     url.searchParams.set('q', query)
-    url.searchParams.set('kl', 'fr-fr')
-    const response = await fetch(url, { headers: { accept: 'text/html', 'user-agent': UA, 'accept-language': 'fr-FR,fr;q=0.9' }, signal: AbortSignal.timeout(6000) })
+    url.searchParams.set('kl', 'us-en')
+    const response = await fetch(url, { headers: { accept: 'text/html', 'user-agent': UA, 'accept-language': 'en-US,en;q=0.9' }, signal: AbortSignal.timeout(6000) })
     if (response.ok) {
       const html = await response.text()
       const snippets = [...html.matchAll(/class="result__snippet"[^>]*>([\s\S]*?)<\/(?:a|td|span)>/gi)].map((match) => strip(match[1] ?? ''))
@@ -121,7 +121,7 @@ export async function webFetch(raw: string, max = 7000): Promise<WebPage> {
   if (!url) return { url: raw, title: '', text: '', ok: false, status: 0 }
   try {
     const response = await fetch(url, {
-      headers: { accept: 'text/html,application/xhtml+xml', 'user-agent': UA, 'accept-language': 'fr-FR,fr;q=0.9' },
+      headers: { accept: 'text/html,application/xhtml+xml', 'user-agent': UA, 'accept-language': 'en-US,en;q=0.9' },
       redirect: 'follow',
       signal: AbortSignal.timeout(8000),
     })

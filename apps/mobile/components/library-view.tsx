@@ -80,7 +80,7 @@ export function LibraryView({
 
       <ScrollView contentContainerStyle={[styles.body, { paddingHorizontal: pad }]} keyboardShouldPersistTaps="handled">
         <Text style={styles.intro}>
-          Tout ce que tu importes dans ATLAS (accueil, Fichiers, photo…) et ce qu’Atlas génère — rangé ici automatiquement.
+          Imports, photos, images générées, rapports d’agents, documents et factures — tout est rangé ici automatiquement.
         </Text>
 
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filters}>
@@ -101,7 +101,7 @@ export function LibraryView({
           <View style={styles.empty}>
             <Text style={styles.emptyTitle}>Rien pour l’instant</Text>
             <Text style={styles.emptyBody}>
-              Importe depuis l’accueil ou Fichiers : chaque document, image ou vidéo arrive ici tout seul.
+              Importe un fichier, demande une image à ATLAS, ou un rapport à un agent ZtcHosting — ça arrive ici tout seul.
             </Text>
           </View>
         ) : (

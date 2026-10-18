@@ -75,7 +75,7 @@ export {
   zoneForDepartment,
 } from './office-archetype'
 export type { ArchetypeSpec, ArchetypeTheme, OfficeArchetype } from './office-archetype'
-export { formatChf, generateOperations } from './office-ops'
+export { formatChf, generateOperations, liveProductOperations } from './office-ops'
 export type {
   OfficeOps,
   OpsAction,
@@ -83,6 +83,8 @@ export type {
   OpsAsset,
   OpsInventoryLine,
   OpsKpi,
+  OpsLive,
+  OpsProductLive,
   OpsRecord,
   OpsRecordStatus,
   OpsStage,
@@ -117,8 +119,53 @@ export type {
   ResearchMode,
 } from './partner'
 export { speechLang } from './speech-lang'
-export { ZTC_ATLAS_RULES, ZTC_SITE, isZtcOrganization, ztcMissionExamples } from './ztc-hosting'
-export type { ZtcCertainty } from './ztc-hosting'
+export {
+  ATLAS_PRIMARY_LANG,
+  ATLAS_PRIMARY_LOCALE,
+  ATLAS_PRIMARY_LANG_NAME,
+  ATLAS_LANGUAGE_RULE,
+  atlasSpeechLocale,
+  atlasAsrLanguage,
+} from './atlas-lang'
+export {
+  ZTC_ATLAS_RULES,
+  ZTC_CLIENT_AREA,
+  ZTC_CONNECTORS,
+  ZTC_DEVOID_API,
+  ZTC_DEPARTMENTS,
+  ZTC_SUPPORT_DEPARTMENT,
+  ztcSupportDepartmentAgents,
+  isZtcSupportAgent,
+  ztcPickSupportAssignee,
+  ZTC_GUEST_API,
+  ZTC_DESKS,
+  ZTC_INTENTION,
+  ZTC_JOURNEY,
+  ZTC_LOGO,
+  ZTC_MARK,
+  ZTC_NAME,
+  ZTC_PRODUCTS,
+  ZTC_RINGS,
+  ZTC_SITE,
+  ZTC_STORE,
+  isZtcOrganization,
+  lockToZtc,
+  missingZtcDesks,
+  ztcCompany,
+  ztcDeskOf,
+  ztcDeskForService,
+  ztcSpecialistDeskOf,
+  ztcMissionExamples,
+  ztcScopeOf,
+  ztcDevoidToolsOf,
+  deskMayUseDevoidTool,
+  ztcSkillsOf,
+  ztcWorkflowOf,
+  DEVOID_TOOL_CATALOG,
+  DEVOID_TOOL_SKILL,
+  ZTC_SCOPES,
+} from './ztc-hosting'
+export type { ZtcCertainty, ZtcCompany, ZtcDataset, ZtcDesk, ZtcProduct, ZtcRing, ZtcScope } from './ztc-hosting'
 export {
   CREW_CONNECTORS,
   CREW_PLAN_PROMPT,

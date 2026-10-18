@@ -1,6 +1,6 @@
 import { LinearGradient } from 'expo-linear-gradient'
 import { router } from 'expo-router'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import {
   ActivityIndicator,
   Alert,
@@ -18,7 +18,7 @@ import { AtlasMark } from '../components/atlas-mark'
 import { AuthField } from '../components/auth-field'
 import { SsoRow } from '../components/sso-button'
 import { brandGradient, colors } from '../lib/theme'
-import { loginAccount, saveSession } from '../lib/session'
+import { loginAccount, readSession, saveSession } from '../lib/session'
 
 function validEmail(value: string) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.trim())
@@ -30,8 +30,24 @@ export default function ConnexionScreen() {
   const [showPassword, setShowPassword] = useState(false)
   const [pending, setPending] = useState(false)
   const [error, setError] = useState('')
+  const [booting, setBooting] = useState(true)
 
   const ready = validEmail(email) && password.trim().length >= 8
+
+  useEffect(() => {
+    let live = true
+    void (async () => {
+      const session = await readSession()
+      if (!live) return
+      if (session?.id) {
+        router.replace('/home')
+        return
+      }
+      if (session?.email) setEmail(session.email)
+      setBooting(false)
+    })()
+    return () => { live = false }
+  }, [])
 
   async function submit() {
     if (!ready || pending) return
@@ -44,13 +60,22 @@ export default function ConnexionScreen() {
       const message = err instanceof Error ? err.message : 'Connexion impossible.'
       if (/injoignable|Network|Failed|fetch/i.test(message)) {
         const localName = email.trim().split('@')[0] || 'Toi'
-        await saveSession({ id: 'phone', name: localName, email: email.trim(), organization: '' })
+        await saveSession({ id: `phone:${email.trim().toLowerCase()}`, name: localName, email: email.trim().toLowerCase(), organization: '' })
         router.replace('/home')
         return
       }
       setError(message)
       setPending(false)
     }
+  }
+
+  if (booting) {
+    return (
+      <View style={[styles.root, { alignItems: 'center', justifyContent: 'center' }]}>
+        <LinearGradient colors={[colors.bg, '#09060a']} style={StyleSheet.absoluteFill} />
+        <ActivityIndicator color={colors.link} />
+      </View>
+    )
   }
 
   function ssoSoon(provider: string) {

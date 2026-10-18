@@ -175,10 +175,15 @@ export function resolveAtlasAction(
     || local.kind === 'navigate'
     || local.kind === 'orchestrate'
     || local.kind === 'space'
+    || local.kind === 'room'
     || local.kind === 'equip'
     || local.kind === 'follow'
     || local.kind === 'crew'
     || local.kind === 'home'
+    || local.kind === 'brief'
+    || local.kind === 'team'
+    || local.kind === 'tasks'
+    || local.kind === 'pitch'
   ) {
     return refineAtlasAction(heard, local)
   }

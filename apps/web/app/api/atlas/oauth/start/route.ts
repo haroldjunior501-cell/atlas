@@ -9,7 +9,7 @@ function escapeHtml(value: string) {
 
 function page(title: string, body: string, provider = '', ok = false) {
   const payload = JSON.stringify({ type: 'atlas-oauth', ok, provider })
-  return new Response(`<!doctype html><html lang="fr"><head><meta charset="utf-8"><title>${escapeHtml(title)}</title>
+  return new Response(`<!doctype html><html lang="en"><head><meta charset="utf-8"><title>${escapeHtml(title)}</title>
 <style>
   body{margin:0;min-height:100vh;display:grid;place-items:center;background:#09090f;color:#f4f4f5;font-family:system-ui,sans-serif}
   main{width:min(420px,92vw);padding:28px;border:1px solid #2a2150;border-radius:20px;background:#12101f;text-align:center}

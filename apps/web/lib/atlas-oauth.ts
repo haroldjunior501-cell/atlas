@@ -219,6 +219,11 @@ export function oauthToolsFor(provider: string) {
     mootion: [
       { name: 'status', description: 'Statut Mootion' },
     ],
+    evolus: [
+      { name: 'summarize', description: 'AI Tool Evolus — résumer un texte (text)' },
+      { name: 'compare', description: 'AI Tool Evolus — comparer deux textes (text, other)' },
+      { name: 'chat', description: 'Agent Evolus (text) — modèle AMD de l’équipe' },
+    ],
   }
   return catalog[provider] ?? []
 }

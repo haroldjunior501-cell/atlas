@@ -25,6 +25,14 @@ function loadRootEnv() {
 loadRootEnv()
 
 const nextConfig: NextConfig = {
+  // Tunnel / reverse-proxy (atlast.strimetv.site): without this, Next blocks /_next/*
+  // with 403, React never hydrates, and forms do a dead native GET submit.
+  allowedDevOrigins: [
+    'atlast.strimetv.site',
+    '*.strimetv.site',
+    'localhost',
+    '127.0.0.1',
+  ],
   env: {
     NEXT_PUBLIC_ATLAS_GATEWAY_URL: process.env.NEXT_PUBLIC_ATLAS_GATEWAY_URL,
   },

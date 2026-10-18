@@ -9,7 +9,7 @@ export type { Place }
 
 const PLACES: Array<{ id: Place; label: string; icon: IconName }> = [
   { id: 'library', label: 'Bibliothèque', icon: 'book' },
-  { id: 'study', label: 'Études', icon: 'study' },
+  { id: 'study', label: 'Organisation', icon: 'org' },
   { id: 'projects', label: 'Projets', icon: 'folder' },
   { id: 'plugins', label: 'Plugins', icon: 'plugin' },
   { id: 'agenda', label: 'Agenda', icon: 'clock' },
@@ -17,7 +17,7 @@ const PLACES: Array<{ id: Place; label: string; icon: IconName }> = [
   { id: 'help', label: 'Aide', icon: 'help' },
 ]
 
-type IconName = 'book' | 'study' | 'folder' | 'plugin' | 'clock' | 'file' | 'gear' | 'help' | 'out'
+type IconName = 'book' | 'org' | 'folder' | 'plugin' | 'clock' | 'file' | 'gear' | 'help' | 'out'
 
 export function HomeDrawer({
   open,
@@ -104,10 +104,12 @@ function NavIcon({ name }: { name: IconName }) {
           <Path d="M20 19V5h-5a3 3 0 0 0-3 3" {...STROKE} />
         </>
       ) : null}
-      {name === 'study' ? (
+      {name === 'org' ? (
         <>
-          <Path d="M22 10 12 5 2 10l10 5 10-5Z" {...STROKE} />
-          <Path d="M6 12v5c3 2 9 2 12 0v-5" {...STROKE} />
+          <Path d="M4 20V10" {...STROKE} />
+          <Path d="M10 20V4" {...STROKE} />
+          <Path d="M16 20v-7" {...STROKE} />
+          <Path d="M3 20h18" {...STROKE} />
         </>
       ) : null}
       {name === 'folder' ? (

@@ -9,7 +9,12 @@ import {
   agentVoice,
   businessModelLabel,
   kitFor,
+  lockToZtc,
   officeOrgFromChart,
+  ZTC_MARK,
+  ZTC_NAME,
+  ZTC_DESKS,
+  missingZtcDesks,
   researchModeOf,
   resolveAgentFace,
   spaceFromText,
@@ -48,6 +53,15 @@ import {
   wordEndIndex,
   type LipSyncClock,
 } from '@/lib/lip-sync-clock'
+import {
+  agentsInRoom,
+  buildOrgStudioContext,
+  buildOrgSupervisorBrief,
+  matchOfficeRoom,
+  pickAgentForMission,
+  teamRosterLine,
+} from '@/lib/atlas-org-context'
+import { ensureZtcRoster, needsZtcRoster, ztcAgentCount, ztcOfficeOrg } from '@/lib/ztc-roster-sync'
 import { ConnectPanel, type PublicLink, type ToolAccess } from './connect-panel'
 import { CreationTheater, ATLAS_INTEL, type CreationShow } from './creation-theater'
 import { AceFace } from './ace-face'
@@ -60,10 +74,13 @@ import { CrewBoard } from './crew-board'
 import styles from './bureau.module.css'
 
 const TEMPLATES = [
-  { title: 'SaaS', icon: 'layers', tone: 'saas', text: 'Crée une entreprise SaaS de cybersécurité destinée aux PME européennes.', detail: 'Produit, croissance et vente aux équipes.' },
-  { title: 'Agence', icon: 'pen', tone: 'agence', text: 'Crée une agence qui accompagne des startups sur le design et la croissance.', detail: 'Production, clients et pilotage.' },
-  { title: 'E-commerce', icon: 'bag', tone: 'shop', text: 'Crée une marque e-commerce de produits durables pour l’Europe.', detail: 'Offre, acquisition et opérations.' },
-  { title: 'Freelance', icon: 'user', tone: 'solo', text: 'Crée le studio d’un freelance qui vend du conseil et de la production.', detail: 'Une équipe courte autour du fondateur.' },
+  {
+    title: 'ZTC Hosting',
+    icon: 'layers',
+    tone: 'saas',
+    text: 'ATLAS orchestre ZTC Hosting : support, WHM, domaines, facturation, SKU IA, scan, perf, pub.',
+    detail: 'Nova · Devoid · Orion · Swift · Vega · Lyra · Echo · Helix · Cipher · Radar · Aegis · Ledger · Forge · Pulse · Flare · Clip · Boost · Muse · Sage',
+  },
 ]
 
 const PERMISSIONS = [
@@ -613,7 +630,7 @@ export function Bureau({ overlay = false }: { overlay?: boolean } = {}) {
   const [briefing, setBriefing] = useState<Intake | null>(null)
   const [build, setBuild] = useState<CreationShow | null>(null)
   const [pickedTools, setPickedTools] = useState<string[]>([])
-  const [firstAsk, setFirstAsk] = useState('Trouvez-moi mes 100 premiers prospects.')
+  const [firstAsk, setFirstAsk] = useState('Fais-moi le point : qui travaille, et orchestre l’équipe ZTC.')
   const briefingRef = useRef<Intake | null>(null)
   const connectGate = useRef<(() => void) | null>(null)
   const enterGate = useRef<(() => void) | null>(null)
@@ -664,13 +681,23 @@ export function Bureau({ overlay = false }: { overlay?: boolean } = {}) {
   /** Bureau 3D = projection déterministe de l’organisation (pas un dessin manuel). */
   const officeOrg = useMemo<OfficeOrgInput | null>(() => {
     if (!chart?.organization?.id) return null
+    const tools = links
+      .filter((item) => item.status === 'connected')
+      .map((item) => ({ id: item.provider, provider: item.provider }))
+    // Si le gateway a encore une vieille équipe (Julien/Sophie…) → forcer le roster ZTC live.
+    const ztcOk = ztcAgentCount(chart.agents.map((agent) => agent.firstName)) >= 12
+      && missingZtcDesks(chart.agents.map((agent) => agent.firstName)).length === 0
+    if (!ztcOk) {
+      return ztcOfficeOrg(chart.organization, tools)
+    }
     const departments = chart.departments.length
       ? chart.departments
       : [{ id: `${chart.organization.id}-seed`, name: 'Direction' }]
     return officeOrgFromChart({
       organization: chart.organization,
-      sector: orgMeta.sector,
-      businessModel: orgMeta.businessModel,
+      sector: orgMeta.sector || 'Hébergement web et cloud',
+      businessModel: orgMeta.businessModel || 'hosting',
+      archetype: 'hosting',
       departments,
       agents: chart.agents.map((agent) => ({
         id: agent.id,
@@ -685,9 +712,7 @@ export function Bureau({ overlay = false }: { overlay?: boolean } = {}) {
           appearance: agent.avatar?.appearance || 'portrait',
         },
       })),
-      tools: links
-        .filter((item) => item.status === 'connected')
-        .map((item) => ({ id: item.provider, provider: item.provider })),
+      tools,
     })
   }, [chart, links, orgMeta])
   /** Travail réel : tâches du gateway (si la route est déployée) + consignes envoyées depuis le studio. */
@@ -923,6 +948,64 @@ export function Bureau({ overlay = false }: { overlay?: boolean } = {}) {
     setOfficeFocus({ agentId: target.agentId, roomId: target.agentId ? null : target.roomId, nonce: Date.now() })
   }
 
+  /** Applique une commande venue du mobile (assistant ATLAS). */
+  function applyStudioRemote(action: import('@/lib/atlas-studio-queue').StudioRemoteAction) {
+    if (action.kind === 'ui') {
+      if (action.op === 'fullscreen' || action.op === 'overview' || action.op === 'top') setView('bureau')
+      window.dispatchEvent(new CustomEvent('atlas-studio-remote', { detail: { op: action.op } }))
+      if (action.op === 'fullscreen') speak('Bureau 3D en plein écran.')
+      else if (action.op === 'exitFullscreen') speak('Plein écran quitté.')
+      else if (action.op === 'top') speak('Vue du dessus.')
+      else speak('Vue d’ensemble.')
+      return
+    }
+    if (action.kind === 'navigate') {
+      setView(action.view)
+      speak(`J’ouvre ${viewLabel(action.view)}.`)
+      return
+    }
+    if (action.kind === 'home') {
+      setView('organigramme')
+      speak('Retour à l’organigramme.')
+      return
+    }
+    if (action.kind === 'mode') {
+      setAdvanced(action.advanced)
+      speak(action.advanced ? 'Mode avancé.' : 'Mode simple.')
+      return
+    }
+    if (action.kind === 'room') {
+      setView('bureau')
+      const rooms = officeOrg?.layout.rooms ?? []
+      const hit = rooms.find((room) => room.name.toLowerCase().includes(action.target.toLowerCase().slice(0, 24)))
+      if (hit) setOfficeFocus({ roomId: hit.id, nonce: Date.now() })
+      speak(hit ? `Salle ${hit.name}.` : `Bureau 3D — salle « ${action.target} ».`)
+      return
+    }
+    if (action.kind === 'tools') {
+      if (document.fullscreenElement) void document.exitFullscreen()
+      setView('integrations')
+      speak('J’ouvre les intégrations.')
+      return
+    }
+    if (action.kind === 'brief' || action.kind === 'team' || action.kind === 'tasks' || action.kind === 'load') {
+      const map = { brief: 'observabilite', team: 'employes', tasks: 'missions', load: 'observabilite' } as const
+      setView(map[action.kind])
+      speak(action.kind === 'team' ? 'Équipe.' : action.kind === 'tasks' ? 'Missions.' : action.kind === 'load' ? 'Observabilité.' : 'Briefing.')
+      return
+    }
+    if (action.kind === 'orchestrate') {
+      setView(action.scope === 'relance' || action.scope === 'envoi' ? 'factures' : 'bureau')
+      speak('Orchestration ouverte sur le Studio.')
+      return
+    }
+    if (action.kind === 'compose') {
+      setView('organigramme')
+      void beginCompose(action.text)
+      speak('Je compose sur le Studio.')
+    }
+  }
+
   function openInvoices(scope: { roomId?: string; agentId?: string }) {
     if (document.fullscreenElement) void document.exitFullscreen()
     setInvoiceScope({ ...scope, nonce: Date.now() })
@@ -947,18 +1030,32 @@ export function Bureau({ overlay = false }: { overlay?: boolean } = {}) {
     const next = normalize(await call<Partial<Chart>>(id ? `/v1/organizations/${id}` : '/v1/organizations'))
     if (next) {
       const merged = withProfiles(next)
+      merged.organization.name = ZTC_NAME
+      rememberName(merged.organization.id, ZTC_NAME)
       setChart(merged)
-      setOrgMeta(rememberedMeta(merged.organization.id))
-      const alias = rememberedName(merged.organization.id)
-      if (alias && merged.organization.name === 'Nouvelle organisation') {
-        merged.organization.name = alias
-        setChart({ ...merged })
-      }
+      const meta = { ...rememberedMeta(merged.organization.id), sector: 'Hébergement web et cloud', businessModel: 'hosting' as const }
+      rememberMeta(merged.organization.id, meta)
+      setOrgMeta(meta)
       window.localStorage.setItem('atlas-organization', merged.organization.id)
       await adoptPersonalLinks(merged.organization.id)
       return merged
     }
     return null
+  }
+
+  async function syncZtcDesks(base: Chart) {
+    if (!needsZtcRoster(base, { sector: 'Hébergement web et cloud', businessModel: 'hosting' })) {
+      return base
+    }
+    pushNotice('connect', 'Équipe ZTC', `Installation des ${ZTC_DESKS.length} postes (Radar, Marketing Flare/Clip/Boost/Muse…).`)
+    const result = await ensureZtcRoster(base, call, rememberProfile)
+    const refreshed = await loadChart(result.chartId)
+    if (result.hired.length) {
+      pushNotice('tool', 'Postes ZTC', `${result.hired.join(', ')} · ${ZTC_DESKS.length} employés infrastructure prêts.`)
+    } else {
+      pushNotice('tool', 'Postes ZTC', `${ZTC_DESKS.length} employés déjà alignés sur les départements live.`)
+    }
+    return refreshed ?? base
   }
 
   async function loadOps(id: string) {
@@ -1111,15 +1208,19 @@ export function Bureau({ overlay = false }: { overlay?: boolean } = {}) {
     void (async () => {
       try {
         const next = await loadChart()
-        if (next) await loadOps(next.organization.id)
-        else await refreshLinks(personalWorkspaceId())
+        if (next) {
+          const synced = await syncZtcDesks(next)
+          await loadOps(synced.organization.id)
+        } else await refreshLinks(personalWorkspaceId())
       } catch {
         const saved = window.localStorage.getItem('atlas-organization')
         if (saved) {
           try {
             const next = await loadChart(saved)
-            if (next) await loadOps(next.organization.id)
-            else await refreshLinks(personalWorkspaceId())
+            if (next) {
+              const synced = await syncZtcDesks(next)
+              await loadOps(synced.organization.id)
+            } else await refreshLinks(personalWorkspaceId())
           } catch {
             setChart(null)
             await refreshLinks(personalWorkspaceId())
@@ -1145,6 +1246,39 @@ export function Bureau({ overlay = false }: { overlay?: boolean } = {}) {
     }
     setGrants(grantStore()[id] ?? {})
   }, [chart?.organization.id])
+
+  const applyStudioRemoteRef = useRef(applyStudioRemote)
+  applyStudioRemoteRef.current = applyStudioRemote
+
+  /** Mobile ATLAS → pilotage live de cet onglet Studio. */
+  useEffect(() => {
+    let cursor = Date.now() - 2000
+    let alive = true
+    async function pull() {
+      try {
+        const org = typeof window !== 'undefined' ? window.localStorage.getItem('atlas-organization') : null
+        const response = await fetch(
+          `/api/atlas/studio-commands?since=${cursor}${org ? `&organizationId=${encodeURIComponent(org)}` : ''}`,
+          { headers: { 'x-atlas-user': userId() } },
+        )
+        if (!response.ok || !alive) return
+        const body = await response.json() as {
+          commands?: Array<{ at: number; action: import('@/lib/atlas-studio-queue').StudioRemoteAction }>
+          cursor?: number
+        }
+        if (typeof body.cursor === 'number' && body.cursor > cursor) cursor = body.cursor
+        for (const command of body.commands ?? []) {
+          applyStudioRemoteRef.current(command.action)
+        }
+      } catch { /* Studio offline / réseau */ }
+    }
+    const timer = window.setInterval(() => { void pull() }, 500)
+    void pull()
+    return () => {
+      alive = false
+      window.clearInterval(timer)
+    }
+  }, [])
 
   useEffect(() => {
     if (!selected || !chart) return
@@ -1260,18 +1394,19 @@ export function Bureau({ overlay = false }: { overlay?: boolean } = {}) {
   }
 
   async function generate(text?: string) {
-    const message = (text ?? draft).trim()
-    if (message.length < 3 || pending) {
-      if (message.length < 3) setHint('Décrivez d’abord votre intention.')
+    const raw = (text ?? draft).trim()
+    if (raw.length < 3 || pending) {
+      if (raw.length < 3) setHint('Décrivez d’abord votre intention.')
       return false
     }
+    const message = lockToZtc(raw)
     setPending(true)
     setHint('')
     setView('organigramme')
     setSelectedId(null)
     setTab('details')
     setQuery('')
-    setFirstAsk('Trouvez-moi mes 100 premiers prospects.')
+    setFirstAsk('Dresse l’inventaire réel depuis ztchosting.com et /order. Qualifie chaque fait. Aucun SLA inventé.')
     showBuild({
       beat: '1',
       title: 'Analyse de votre vision',
@@ -1644,7 +1779,7 @@ export function Bureau({ overlay = false }: { overlay?: boolean } = {}) {
   function attachEar() {
     const ear = recognizer()
     if (!ear) return null
-    ear.lang = 'fr-FR'
+    ear.lang = 'en-US'
     ear.continuous = true
     ear.interimResults = false
     ear.onstart = () => { earLive.current = true }
@@ -1671,7 +1806,7 @@ export function Bureau({ overlay = false }: { overlay?: boolean } = {}) {
       earLive.current = false
       if (event.error === 'network') return
       if (event.error === 'not-allowed' || event.error === 'audio-capture' || event.error === 'service-not-allowed') {
-        setSpoken('Je n’ai pas accès au micro. Autorisez le micro, puis cliquez le visage d’Atlas.')
+        setSpoken("I can't access the microphone. Allow mic access, then click Atlas's face.")
       }
     }
     ear.onend = () => {
@@ -2011,9 +2146,9 @@ export function Bureau({ overlay = false }: { overlay?: boolean } = {}) {
         talkStream.current = stream
         talkContext.current = context
         setTalking(true)
-        setSpoken('Je vous écoute. Recliquez le réacteur quand vous avez fini.')
+        setSpoken("I'm listening. Click the reactor again when you're done.")
       } catch {
-        setSpoken('Le micro est bloqué. Autorisez le micro dans le navigateur, puis cliquez le visage.')
+        setSpoken('Microphone blocked. Allow mic access in the browser, then click the face.')
       }
       return
     }
@@ -2025,10 +2160,10 @@ export function Bureau({ overlay = false }: { overlay?: boolean } = {}) {
     talkStream.current = null
     talkContext.current = null
     if (chunks.length === 0) {
-      setSpoken('Je n’ai rien entendu. Réessayez, ou écrivez l’ordre.')
+      setSpoken("I didn't catch anything. Try again, or type the command.")
       return
     }
-    setSpoken('Je transcris.')
+    setSpoken('Transcribing…')
     try {
       const response = await fetch('/api/atlas/hear', {
         method: 'POST',
@@ -2043,10 +2178,10 @@ export function Bureau({ overlay = false }: { overlay?: boolean } = {}) {
         return
       }
       setSpoken(body.error === 'busy'
-        ? localVoiceReply('bonjour')
-        : 'Je n’ai pas compris. Cliquez le visage et reparlez.')
+        ? localVoiceReply('hello')
+        : "I didn't catch that. Click the face and speak again.")
     } catch {
-      setSpoken('Je n’ai pas pu entendre. Cliquez le visage et reparlez.')
+      setSpoken("I couldn't hear you. Click the face and speak again.")
     }
   }
 
@@ -2063,12 +2198,21 @@ export function Bureau({ overlay = false }: { overlay?: boolean } = {}) {
     })
   }
 
+  function orgStudioPayload() {
+    if (!chart) return null
+    return buildOrgStudioContext(chart, {
+      decisionsPending: decisions.filter((item) => item.status === 'pending').length,
+      openTasks: counts?.openTasks,
+      journal: journal.map((item) => ({ agentId: item.agentId, title: item.title, status: item.status })),
+      liveTasks: (liveTasks ?? []).map((item) => ({ agentId: item.agentId, title: item.title, status: item.status })),
+    })
+  }
+
   async function directAtlas(text: string) {
-    setSpoken('Je réfléchis.')
+    setSpoken('Thinking…')
     const controller = new AbortController()
-    const timer = window.setTimeout(() => controller.abort(), 8000)
+    const timer = window.setTimeout(() => controller.abort(), 12000)
     try {
-      const wantsStudio = /\b(?:marque|studio|organi|entreprise|d[eé]partement|employ|mission|workflow|[eé]quipe|coll[eè]gue|notre\b|nos\b|projet)\b/i.test(text)
       const continuity = sessionBrief(sessionCtx.current)
       const response = await fetch('/api/jarvis', {
         method: 'POST',
@@ -2077,13 +2221,8 @@ export function Bureau({ overlay = false }: { overlay?: boolean } = {}) {
         body: JSON.stringify({
           text,
           memory: [memoryBrief(10), continuity].filter(Boolean).join('\n'),
-          studio: chart && wantsStudio ? {
-            name: chart.organization.name,
-            intention: chart.organization.intention ?? chart.organization.objective,
-            departments: chart.departments.map((item) => item.name),
-            agents: chart.agents.slice(0, 8).map((agent) => `${agent.firstName} ${agent.role}`),
-            pending: decisions.filter((item) => item.status === 'pending').length,
-          } : null,
+          // Toujours envoyer le studio ZTC dès qu’il y a une org : ATLAS doit tout savoir.
+          studio: orgStudioPayload(),
         }),
       })
       if (!response.ok) return null
@@ -2116,9 +2255,13 @@ export function Bureau({ overlay = false }: { overlay?: boolean } = {}) {
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({
           agent: profileOf(agent, knowledge),
-          organization: chart?.organization.name,
-          colleagues: (chart?.agents ?? []).filter((item) => item.id !== agent.id).slice(0, 8).map((item) => `${item.firstName} (${item.role})`),
-          question,
+          organization: chart?.organization.name || 'ZtcHosting',
+          colleagues: (chart?.agents ?? [])
+            .filter((item) => item.id !== agent.id)
+            .map((item) => `${item.firstName} (${item.role})`),
+          question: question
+            ? `[ATLAS orchestre] ${question}`
+            : question,
           history: lines,
         }),
       })
@@ -2159,14 +2302,159 @@ export function Bureau({ overlay = false }: { overlay?: boolean } = {}) {
         amount: null,
       }),
     })
+    const allowed = result.outcome === 'allowed'
     logWork({
       agentId: agent.id,
       title: text,
-      status: result.outcome === 'allowed' ? 'sent' : result.outcome === 'approval_required' ? 'pending' : 'denied',
+      status: allowed ? 'doing' : result.outcome === 'approval_required' ? 'pending' : 'denied',
     })
-    return result.outcome === 'allowed'
-      ? 'lancée'
+    if (allowed) {
+      await call(`/v1/agents/${agent.id}`, {
+        method: 'PATCH',
+        body: JSON.stringify({ presence: 'working' }),
+      }).catch(() => null)
+      // Exécution temps réel avec compétences + données produit live
+      void (async () => {
+        try {
+          const response = await fetch('/api/atlas/agent', {
+            method: 'POST',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify({
+              execute: true,
+              organization: chart?.organization.name || 'ZtcHosting',
+              colleagues: (chart?.agents ?? [])
+                .filter((item) => item.id !== agent.id)
+                .slice(0, 8)
+                .map((item) => `${item.firstName} (${item.role})`),
+              agent: profileOf(completeAgent(agent, chart?.departments.find((d) => d.id === agent.departmentId)?.name || '')),
+              question: text,
+            }),
+          })
+          const body = await response.json() as { reply?: string }
+          const reply = body.reply?.trim()
+          if (reply) {
+            await call(`/v1/organizations/${agent.organizationId}/agents/${agent.id}/messages`, {
+              method: 'POST',
+              body: JSON.stringify({ authorId: agent.id, body: reply }),
+            }).catch(() => null)
+            logWork({ agentId: agent.id, title: `${text} · livré`, status: 'done' })
+            pushNotice('tool', agent.firstName, reply.slice(0, 160))
+          }
+        } catch { /* mission déjà journalisée */ }
+      })()
+    }
+    return allowed
+      ? 'lancée — exécution en cours'
       : result.outcome === 'approval_required' ? 'en attente de votre accord' : result.reason
+  }
+
+  async function waitVoiceIdle(capMs = 48000) {
+    const start = Date.now()
+    await new Promise((resolve) => window.setTimeout(resolve, 350))
+    while (Date.now() - start < capMs) {
+      if (!voiceBusy.current && voiceQueue.current.length === 0 && !speaking.current) {
+        await new Promise((resolve) => window.setTimeout(resolve, 280))
+        if (!voiceBusy.current && voiceQueue.current.length === 0 && !speaking.current) return
+      }
+      await new Promise((resolve) => window.setTimeout(resolve, 180))
+    }
+  }
+
+  async function sayPitch(text: string) {
+    voice(text)
+    await waitVoiceIdle()
+  }
+
+  /** Submission / product video: Atlas presents itself, ZTC org, Studio sections, 3D agents, then opens the site. */
+  async function runSubmissionPitch() {
+    const pause = (ms: number) => new Promise((resolve) => window.setTimeout(resolve, ms))
+    const focusAgent = (name: string) => {
+      const agent = findAgent(name)
+      if (!agent) return null
+      setView('bureau')
+      setSelectedId(agent.id)
+      setTab('details')
+      setOfficeFocus({ agentId: agent.id, nonce: Date.now() })
+      return agent
+    }
+    const focusRoom = (target: string) => {
+      const rooms = twin.layout.rooms
+      const room = matchOfficeRoom(rooms, target)
+      if (!room) return null
+      setView('bureau')
+      setOfficeFocus({ roomId: room.id, nonce: Date.now() })
+      return room
+    }
+
+    setHint('')
+    setSpoken('Starting presentation…')
+    if (!chart) {
+      await sayPitch('Load the ZTC Hosting organization in the Studio first, then ask me to start the submission pitch again.')
+      return
+    }
+
+    await sayPitch(
+      'Hello. I am Atlas, the AI operating system for organizations. I design the company, staff it with AI employees, and orchestrate their work in real time.',
+    )
+
+    setView('organigramme')
+    await pause(700)
+    await sayPitch(
+      `${chart.organization.name || 'ZTC Hosting'} is the organization I built: a web hosting company on ztchosting.com — domains, cPanel hosting, email, billing, and AI-hosted products.`,
+    )
+
+    setView('employes')
+    await pause(600)
+    const highlights = ['Nova', 'Devoid', 'Vega', 'Lyra', 'Ledger', 'Radar', 'Swift', 'Funnel', 'Muse']
+      .map((name) => chart.agents.find((agent) => agent.firstName.toLowerCase() === name.toLowerCase()))
+      .filter(Boolean)
+      .slice(0, 8)
+    const roster = highlights.length
+      ? highlights.map((agent) => `${agent!.firstName}, ${agent!.role}`).join('. ')
+      : teamRosterLine(chart.agents, 8)
+    await sayPitch(`Here is the core team. ${roster}.`)
+
+    setView('missions')
+    await pause(500)
+    await sayPitch('Missions and workflows are how I assign real work — support tickets, DNS, hosting, billing, security, and growth.')
+
+    setView('bureau')
+    await pause(800)
+    await sayPitch('Now the 3D desk — the live twin of ZTC Hosting. Each room is a department. I will open the key ones and show who works there.')
+
+    const rooms: Array<{ target: string; line: string }> = [
+      { target: 'Support', line: 'Support: Nova welcomes clients and routes tickets; Devoid operates the chat on ztchosting.com.' },
+      { target: 'Hébergement', line: 'Hosting: Vega runs cPanel accounts, quotas, and AutoSSL within the plan sold.' },
+      { target: 'Domaines', line: 'Domains and DNS: Lyra handles registration, DNS, and renewals.' },
+      { target: 'Sécurité', line: 'Security: Radar scans the public surface; Cipher watches hardening — no exploits, only observed facts.' },
+      { target: 'Performance', line: 'Performance: Swift measures TTFB and availability on the live site.' },
+      { target: 'Flux visiteurs', line: 'Visitor flow: Funnel qualifies traffic and prospects from real sessions only.' },
+    ]
+    for (const step of rooms) {
+      const room = focusRoom(step.target)
+      await pause(room ? 900 : 400)
+      await sayPitch(step.line)
+    }
+
+    const agents: Array<{ name: string; line: string }> = [
+      { name: 'Nova', line: 'Nova — customer success and ticket routing for DEVOID escalations.' },
+      { name: 'Vega', line: 'Vega — hosting and WHM, inside the customer plan.' },
+      { name: 'Lyra', line: 'Lyra — domains and DNS.' },
+      { name: 'Ledger', line: 'Ledger — FOSSBilling invoices and renewals.' },
+      { name: 'Funnel', line: 'Funnel — visitor and prospect reports, never invented numbers.' },
+    ]
+    for (const step of agents) {
+      const agent = focusAgent(step.name)
+      await pause(agent ? 700 : 300)
+      await sayPitch(step.line)
+    }
+
+    setView('bureau')
+    await pause(500)
+    await sayPitch('That is ZTC Hosting under ATLAS: orchestrated AI employees, real tools, and no invented status. Opening the public site now.')
+    window.open('https://ztchosting.com/', '_blank', 'noopener,noreferrer')
+    setSiri({ kind: 'web', title: 'ZTC Hosting', query: 'ztchosting.com', url: 'https://ztchosting.com/', hits: [], reply: 'Opened ztchosting.com' })
+    await sayPitch('Here is ztchosting.com — the live product. Thank you.')
   }
 
   async function pilot(raw: string) {
@@ -2176,7 +2464,7 @@ export function Bureau({ overlay = false }: { overlay?: boolean } = {}) {
     pushSessionTurn(sessionCtx.current, 'user', heardRaw)
     // Continuité : « dedans », « le fichier » → dernier fichier / action
     const heard = expandWithSession(heardRaw, sessionCtx.current)
-    setSpoken(`Entendu : ${heardRaw}`)
+    setSpoken(`Heard: ${heardRaw}`)
     // Onglet Web déjà ouvert → « ouvre dans le navigateur » ouvre vraiment le browser
     if (
       siri?.url
@@ -2226,6 +2514,10 @@ export function Bureau({ overlay = false }: { overlay?: boolean } = {}) {
       voice('Je n’ai pas pu dessiner l’organisation.')
       return
     }
+    if (local.kind === 'pitch') {
+      await runSubmissionPitch()
+      return
+    }
     const consult = shouldConsultLlm(local, heard)
     const directed = consult ? await directAtlas(heard) : null
     let action = resolveAtlasAction(heard, local, directed?.action)
@@ -2237,6 +2529,17 @@ export function Bureau({ overlay = false }: { overlay?: boolean } = {}) {
     if (/ne (?:peux|peut) pas r[eé]pondre|extraits (?:fournis|ne contiennent)|aucune information pertinente/i.test(line)) {
       line = ''
       if (action.kind === 'listen' || action.kind === 'answer') action = { kind: 'search', query: webQuery(heard) || heard }
+    }
+    // Superviseur : jamais laisser le LLM nier l’accès au bureau / aux agents
+    if (/ne (?:peux|peut) pas voir|aucun acc[eè]s (?:à |au |a )?(?:ton |votre |l['’])?(?:bureau|agent|[eé]cran|appli)|regarde directement (?:dans |la )?vue 3d/i.test(line)
+      || (/bureau|agents?|employ[eé]s?/.test(heard) && /ne (?:peux|peut) pas|pas d['’]acc[eè]s|je n['’]ai pas/i.test(line))) {
+      line = ''
+      if (chart) action = { kind: 'brief' }
+    }
+    if ((action.kind === 'listen' || action.kind === 'answer') && chart
+      && /que (?:font|fait)|(?:mes|les) agents?|bureau\s*3d|qui travaille|statut.{0,20}agents?/i.test(heard)) {
+      action = { kind: 'brief' }
+      line = ''
     }
     const asking = /[?]|\b(pourquoi|comment|quoi|quel|quelle|aide|besoin|conseil|id[eé]e|vendre|produit)\b/i.test(heard)
     if ((action.kind === 'listen' || action.kind === 'answer') && !line && asking && heard.trim().length > 12) {
@@ -2275,11 +2578,11 @@ export function Bureau({ overlay = false }: { overlay?: boolean } = {}) {
     if (action.kind === 'answer') {
       interruptSpeech()
       spokenDisplay.current = ''
-      setSpoken(line || 'Je réfléchis…')
+      setSpoken(line || 'Thinking…')
       try {
         const ask = action.text || raw
         // N'injecte le studio que si la demande parle vraiment de l'orga / marque
-        const wantsStudio = /\b(?:marque|studio|organi|entreprise|d[eé]partement|employ|mission|workflow|[eé]quipe|coll[eè]gue|notre\b|nos\b|projet)\b/i.test(ask)
+        const wantsStudio = /\b(?:marque|studio|organi|entreprise|d[eé]partement|employ|agent|bureau|mission|workflow|[eé]quipe|coll[eè]gue|notre\b|nos\b|projet|supervis)\b/i.test(ask)
         const response = await fetch('/api/atlas/partner', {
           method: 'POST',
           headers: { 'content-type': 'application/json' },
@@ -2288,13 +2591,13 @@ export function Bureau({ overlay = false }: { overlay?: boolean } = {}) {
             text: ask,
             memory: memoryBrief(8),
             studio: chart && wantsStudio
-              ? `${chart.organization.name} — ${chart.organization.intention ?? ''}`
+              ? JSON.stringify(orgStudioPayload())
               : '',
             stream: true,
           }),
         })
         if (!response.ok || !response.body) {
-          speak(line || 'Je vous écoute — reformulez ce que vous voulez obtenir.')
+          speak(line || "I'm listening — rephrase what you want.")
           return
         }
         const reader = response.body.getReader()
@@ -2321,29 +2624,29 @@ export function Bureau({ overlay = false }: { overlay?: boolean } = {}) {
               if (payload.delta) {
                 full += payload.delta
                 // Ne pas afficher tout le texte d’un coup — le TTS révèle phrase par phrase
-                if (!heardSentence && !voiceBusy.current) setSpoken('Je réfléchis…')
+                if (!heardSentence && !voiceBusy.current) setSpoken('Thinking…')
               }
               if (payload.sentence) {
                 heardSentence = true
                 voiceEnqueue(payload.sentence)
               }
               if (payload.done && payload.reply && !heardSentence) {
-                speak(payload.reply.trim() || line || 'Je vous écoute.')
+                speak(payload.reply.trim() || line || "I'm listening.")
               }
             } catch { /* partial SSE */ }
           }
         }
         if (!heardSentence && !full.trim()) {
-          speak(line || 'Je traite votre demande. Reformulez en une phrase si besoin.')
+          speak(line || "I'm working on your request. Rephrase in one sentence if needed.")
         }
       } catch {
-        speak(line || 'Je traite votre demande. Reformulez en une phrase si besoin.')
+        speak(line || "I'm working on your request. Rephrase in one sentence if needed.")
       }
       return
     }
     if (action.kind === 'remember') {
       const fact = rememberFact({ value: action.text })
-      speak(line || `C’est noté. Je retiens : ${fact.value}`)
+      speak(line || `Got it. I'll remember: ${fact.value}`)
       return
     }
     if (action.kind === 'forget') {
@@ -2481,7 +2784,7 @@ export function Bureau({ overlay = false }: { overlay?: boolean } = {}) {
       return
     }
     if (action.kind === 'image') {
-      setSpoken(line || 'Je génère l’image…')
+      setSpoken(line || 'Generating the image…')
       try {
         const response = await fetch('/api/atlas/create', {
           method: 'POST',
@@ -2526,7 +2829,7 @@ export function Bureau({ overlay = false }: { overlay?: boolean } = {}) {
       return
     }
     if (action.kind === 'film') {
-      setSpoken(line || 'Je tourne le film…')
+      setSpoken(line || 'Shooting the film…')
       try {
         const response = await fetch('/api/atlas/film', {
           method: 'POST',
@@ -2563,7 +2866,7 @@ export function Bureau({ overlay = false }: { overlay?: boolean } = {}) {
       return
     }
     if (action.kind === 'draft' && action.format === 'website') {
-      setSpoken(line || 'Je compose un site stylé…')
+      setSpoken(line || 'Building a styled site…')
       try {
         const created = await fetch('/api/atlas/create', {
           method: 'POST',
@@ -2604,7 +2907,7 @@ export function Bureau({ overlay = false }: { overlay?: boolean } = {}) {
       return
     }
     if (action.kind === 'teach' || action.kind === 'code' || action.kind === 'draft') {
-      setSpoken(line || 'Je prépare ça…')
+      setSpoken(line || 'Preparing that…')
       try {
         const response = await fetch('/api/atlas/partner', {
           method: 'POST',
@@ -2663,8 +2966,8 @@ export function Bureau({ overlay = false }: { overlay?: boolean } = {}) {
       const topic = webQuery(action.query).trim() || action.query.trim() || heard
       const mode = action.mode || researchModeOf(topic)
       const url = webSearchUrl(topic)
-      setSiri({ kind: 'web', title: `Recherche · ${mode}`, query: topic, url, hits: [], reply: 'Je cherche.' })
-      setSpoken('Je cherche.')
+      setSiri({ kind: 'web', title: `Recherche · ${mode}`, query: topic, url, hits: [], reply: 'Searching…' })
+      setSpoken('Searching…')
       try {
         const response = await fetch('/api/atlas/search', {
           method: 'POST',
@@ -2718,13 +3021,67 @@ export function Bureau({ overlay = false }: { overlay?: boolean } = {}) {
       }
       const wanted = twin.ops.atlas.actions.filter((item: OpsAction) => (action.scope === 'all' || item.kind === action.scope) && !twin.runs[item.id])
       setView(action.scope === 'relance' || action.scope === 'envoi' ? 'factures' : 'bureau')
+      const firstRoom = wanted.find((item) => item.roomId)?.roomId
+      if (firstRoom) setOfficeFocus({ roomId: firstRoom, nonce: Date.now() })
       if (!wanted.length) {
-        speak('Tout est déjà pris en charge de ce côté.')
+        // Pas d’actions atlas : mobiliser quand même les agents présents dans le bureau
+        const staff = (chart?.agents ?? []).slice(0, 6)
+        if (staff.length && action.scope === 'all') {
+          const lines: string[] = []
+          for (const agent of staff) {
+            const status = await assign(agent, `Point de supervision ATLAS : avance sur ton périmètre (${agent.role}) et rapporte les preuves live.`).catch(() => 'non transmise')
+            lines.push(`${agent.firstName} : ${status}`)
+          }
+          speak(`Bureau ouvert. ${lines.join('. ')}.`)
+          return
+        }
+        speak('Tout est déjà pris en charge de ce côté. Ouvrez une salle — dites « ouvre la salle Sécurité ».')
         return
       }
-      setSpoken(`J’orchestre ${wanted.length} action${wanted.length > 1 ? 's' : ''}…`)
+      setSpoken(`J’orchestre ${wanted.length} action${wanted.length > 1 ? 's' : ''} dans le bureau…`)
       const notes = await twin.runMany(wanted)
       speak(`${notes.join('. ')}.`)
+      return
+    }
+    if (action.kind === 'room') {
+      if (!officeOrg) {
+        speak('Le Bureau 3D n’est pas encore monté. Composez d’abord l’organisation ZTC.')
+        return
+      }
+      setView('bureau')
+      const room = matchOfficeRoom(twin.layout.rooms, action.target)
+      if (!room) {
+        const known = twin.layout.rooms.slice(0, 8).map((item) => item.name).join(', ')
+        speak(`Je ne trouve pas la salle « ${action.target} ». Zones : ${known}.`)
+        return
+      }
+      setOfficeFocus({ roomId: room.id, nonce: Date.now() })
+      const layoutIds = twin.layout.agents.filter((agent) => agent.roomId === room.id).map((agent) => agent.id)
+      const staff = agentsInRoom(chart?.agents ?? [], room, layoutIds)
+      if (!staff.length) {
+        speak(`${room.name} est ouvert(e), mais aucun agent n’y est posté pour l’instant.`)
+        return
+      }
+      if (action.mission) {
+        const lines: string[] = []
+        for (const agent of staff) {
+          const status = await assign(agent, action.mission).catch(() => 'non transmise')
+          lines.push(`${agent.firstName} : ${status}`)
+        }
+        if (chart) await loadOps(chart.organization.id)
+        speak(`${room.name} — j’y pilote ${staff.length} agent${staff.length > 1 ? 's' : ''}. ${lines.join('. ')}.`)
+        return
+      }
+      const workLines = staff.map((agent) => {
+        const jobs = officeControl.work(agent.id).slice(0, 2)
+        const job = jobs.length ? ` · ${jobs.map((item) => item.title).join(', ')}` : ''
+        return `${agent.firstName} (${agent.role})${job}`
+      })
+      speak(`${room.name} : ${workLines.join('. ')}. Dites « demande à toute la salle ${room.name} de… » pour les faire travailler.`)
+      return
+    }
+    if (action.kind === 'pitch') {
+      await runSubmissionPitch()
       return
     }
     if (action.kind === 'navigate') {
@@ -2766,8 +3123,8 @@ export function Bureau({ overlay = false }: { overlay?: boolean } = {}) {
     if (action.kind === 'search') {
       const topic = webQuery(action.query).trim() || action.query.trim() || heard
       const url = webSearchUrl(topic)
-      setSiri({ kind: 'web', title: 'Web', query: topic, url, hits: [], reply: 'Je cherche.' })
-      setSpoken('Je cherche.')
+      setSiri({ kind: 'web', title: 'Web', query: topic, url, hits: [], reply: 'Searching…' })
+      setSpoken('Searching…')
       try {
         const response = await fetch('/api/atlas/search', {
           method: 'POST',
@@ -2981,7 +3338,7 @@ export function Bureau({ overlay = false }: { overlay?: boolean } = {}) {
     }
     if (!chart && action.kind !== 'brief') {
       // Ne bloque plus : toute demande hors studio → réponse partenaire
-      setSpoken(line || 'Je m’en occupe…')
+      setSpoken(line || 'On it…')
       try {
         const response = await fetch('/api/atlas/partner', {
           method: 'POST',
@@ -3000,31 +3357,38 @@ export function Bureau({ overlay = false }: { overlay?: boolean } = {}) {
       return
     }
     if (action.kind === 'brief' || action.kind === 'team' || action.kind === 'tasks' || action.kind === 'load') {
+      const wantsBureau = /bureau|3d|salle|agents?.{0,30}(?:font|fait|travaill)/i.test(raw)
       const viewFor: Partial<Record<typeof action.kind, View>> = {
-        brief: 'observabilite',
+        brief: wantsBureau ? 'bureau' : 'observabilite',
         team: 'employes',
         tasks: 'missions',
         load: 'observabilite',
       }
       setView(viewFor[action.kind] ?? 'organigramme')
       if (action.kind === 'team') {
-        const names = (chart?.agents ?? []).slice(0, 6).map((agent) => `${agent.firstName}, ${agent.role}`)
-        speak(names.length ? `${names.join('. ')}.` : 'Aucun employé en poste.')
+        speak(teamRosterLine(chart?.agents ?? []), { real: true })
       } else if (action.kind === 'tasks') {
-        speak(counts ? `${counts.openTasks} tâches ouvertes.` : 'Aucune tâche en cours.')
+        const open = journal.filter((item) => item.status === 'sent' || item.status === 'doing' || item.status === 'pending')
+        const byAgent = open.slice(0, 8).map((item) => {
+          const who = chart?.agents.find((agent) => agent.id === item.agentId)
+          return `${who?.firstName ?? 'Agent'} : ${item.title}`
+        })
+        speak(byAgent.length
+          ? `${byAgent.join('. ')}.${counts ? ` Total ouvert : ${counts.openTasks}.` : ''}`
+          : (counts ? `${counts.openTasks} tâches ouvertes.` : 'Aucune tâche en cours. Je peux en confier une — dites « demande à Nova de… ».'), { real: true })
       } else if (action.kind === 'load') {
-        speak('J’ouvre l’observabilité.')
+        speak('J’ouvre l’observabilité pour surveiller la charge de l’équipe.', { real: true })
       } else if (chart) {
         const pending = decisions.filter((item) => item.status === 'pending')
-        const active = chart.agents.slice(0, 3).map((agent) => `${agent.firstName} est au poste ${agent.role}`)
-        const decisionsLine = pending.length
-          ? `${pending.length} décision${pending.length > 1 ? 's' : ''} attend${pending.length > 1 ? 'ent' : ''} votre accord.`
-          : 'Aucune décision n’attend votre accord.'
-        const watch = alerts.length ? ` J’ai relevé ${alerts.length} point${alerts.length > 1 ? 's' : ''} d’attention. ${alerts[0]}` : ''
-        speak(`${chart.organization.name}. ${chart.agents.length} employés actifs. ${active.join('. ')}. ${decisionsLine}${watch}`)
-        if (pending.length) setView('approbations')
+        speak(buildOrgSupervisorBrief(chart, {
+          decisionsPending: pending.length,
+          alerts,
+          journal: journal.map((item) => ({ agentId: item.agentId, title: item.title, status: item.status })),
+          liveTasks: (liveTasks ?? []).map((item) => ({ agentId: item.agentId, title: item.title, status: item.status })),
+        }), { real: true })
+        if (pending.length && !wantsBureau) setView('approbations')
       } else {
-        speak('Aucune organisation n’est encore composée.')
+        speak('Aucune organisation n’est encore composée. Dites-moi de monter l’équipe ZTC Hosting.', { real: true })
       }
       return
     }
@@ -3286,7 +3650,7 @@ export function Bureau({ overlay = false }: { overlay?: boolean } = {}) {
     }
     if (action.kind === 'plan') {
       setView('missions')
-      setSpoken('Je répartis la mission.')
+      setSpoken("I'm assigning the mission.")
       const lines: string[] = []
       const missing: string[] = []
       for (const step of action.steps) {
@@ -3305,8 +3669,7 @@ export function Bureau({ overlay = false }: { overlay?: boolean } = {}) {
       return
     }
     if (action.kind === 'mission') {
-      const named = chart!.agents.find((agent) => action.text.toLowerCase().includes(agent.firstName.toLowerCase()))
-      const agent = named ?? chart!.agents[0]
+      const agent = pickAgentForMission(chart!.agents, action.text)
       if (!agent) {
         speak('Aucun employé pour porter cette mission.')
         return
@@ -3369,7 +3732,7 @@ export function Bureau({ overlay = false }: { overlay?: boolean } = {}) {
       let decision = ''
       let positions: string[] = []
       if (people.length) {
-        setSpoken('La réunion commence.')
+        setSpoken('The meeting is starting.')
         try {
           const response = await fetch('/api/atlas/meeting', {
             method: 'POST',
@@ -3513,8 +3876,8 @@ export function Bureau({ overlay = false }: { overlay?: boolean } = {}) {
     if (!chart) {
       return (
         <div className={styles.welcome}>
-          <h1>Décrivez d’abord l’organisation.</h1>
-          <p className={styles.lead}>Cette partie s’ouvre une fois l’équipe dessinée. Choisissez un modèle ou une phrase dans l’organigramme.</p>
+          <h1>Activez d’abord ZTC Hosting.</h1>
+          <p className={styles.lead}>ATLAS orchestre uniquement l’agence ZTC. Ouvrez l’organigramme pour monter Nova, Vega, Ledger et le reste du bureau.</p>
           <button className={styles.primary} type="button" onClick={() => setView('organigramme')}>Aller à l’organigramme</button>
         </div>
       )
@@ -3530,9 +3893,9 @@ export function Bureau({ overlay = false }: { overlay?: boolean } = {}) {
           <span>ATLAS<small>AI ORGANIZATION OS</small></span>
         </Link>
         <div className={styles.orgChip}>
-          <span className={styles.orgMark}><Icon name="building" /></span>
+          <span className={styles.orgMark}><img src={ZTC_MARK} alt="" width={28} height={28} /></span>
           <div>
-            <strong>{chart?.organization.name ?? identity.company}</strong>
+            <strong>{ZTC_NAME}</strong>
             <span>{chart ? `${chart.agents.length} employés IA` : 'Pas encore dessinée'}</span>
           </div>
           <button type="button" aria-label="Revenir à l’accueil" onClick={() => { setChart(null); setSelectedId(null); setView('organigramme') }}><Icon name="plus" /></button>
@@ -3883,7 +4246,7 @@ export function Bureau({ overlay = false }: { overlay?: boolean } = {}) {
                   {meetings.length === 0 ? <p>Aucune réunion pour l’instant.</p> : meetings.map((item) => (
                     <article key={item.id} className={styles.auditItem}>
                       <strong>{item.title}</strong>
-                      <p>{new Date(item.startsAt).toLocaleString('fr-FR')}</p>
+                      <p>{new Date(item.startsAt).toLocaleString('en-US')}</p>
                       {item.agenda?.length ? <p>{item.agenda.join(' · ')}</p> : null}
                     </article>
                   ))}
@@ -4055,7 +4418,7 @@ export function Bureau({ overlay = false }: { overlay?: boolean } = {}) {
                   {audit.length === 0 ? <p>L’historique est encore vide.</p> : audit.slice().reverse().map((item) => (
                     <article key={item.id} className={styles.auditItem}>
                       <strong>{item.action}</strong>
-                      <p>{item.reason} · {new Date(item.at).toLocaleString('fr-FR')}</p>
+                      <p>{item.reason} · {new Date(item.at).toLocaleString('en-US')}</p>
                     </article>
                   ))}
                 </div>
@@ -4065,7 +4428,7 @@ export function Bureau({ overlay = false }: { overlay?: boolean } = {}) {
             {view === 'templates' ? (
               <section className={styles.welcome}>
                 <h1>Templates</h1>
-                <p className={styles.lead}>Un modèle remplit la phrase. Vous la relisez, puis vous activez l’organisation.</p>
+                <p className={styles.lead}>ATLAS ne monte plus que l’agence ZTC Hosting. Les autres modèles sont déconnectés.</p>
                 <div className={styles.templateRow}>
                   {TEMPLATES.map((item) => (
                     <TemplateCard key={item.title} item={item} onPick={() => { setDraft(item.text); setView('organigramme') }} />
@@ -4098,7 +4461,7 @@ export function Bureau({ overlay = false }: { overlay?: boolean } = {}) {
                 <p className={styles.lead}>{identity.name} · {identity.company}</p>
                 <p>Facturation : espace de démonstration. Aucun paiement n’est demandé.</p>
                 <p>Sécurité : le mot de passe a été choisi à l’inscription. La double authentification et le SSO ne sont pas encore ouverts.</p>
-                <p>Langue de l’interface : français.</p>
+                <p>Interface language: English.</p>
                 <div className={styles.choice}>
                   <button className={styles.ghost} type="button" disabled={!chart} onClick={exportJson}>Exporter l’organisation</button>
                   <button className={styles.ghost} type="button" onClick={() => window.print()}>Imprimer le rapport</button>
@@ -4322,14 +4685,14 @@ function StudioConsole({
 }) {
   return (
     <div className={styles.voiceStage}>
-      <p className={styles.voiceOnlyBadge} aria-label="Assistance vocale">
-        <Icon name="wave" /> Assistance vocale
+      <p className={styles.voiceOnlyBadge} aria-label="Voice assistant">
+        <Icon name="wave" /> Voice assistant
       </p>
       <div
         className={listening || talking || voicePlaying ? `${styles.reactor} ${styles.reactorLive}` : styles.reactor}
         role="button"
         tabIndex={0}
-        aria-label={talking ? 'Envoyer ce que je viens de dire' : 'Parler à Atlas'}
+        aria-label={talking ? 'Send what I just said' : 'Talk to Atlas'}
         onClick={onTalk}
         onKeyDown={(event) => {
           if (event.key === 'Enter' || event.key === ' ') {
@@ -4350,7 +4713,7 @@ function StudioConsole({
         />
       </div>
       <p className={styles.atlasLine}>
-        {listening ? 'Atlas vous écoute.' : talking ? 'Atlas enregistre…' : 'Parlez ou écrivez un ordre.'}
+        {listening ? 'Atlas is listening.' : talking ? 'Atlas is recording…' : 'Speak or type a command.'}
         {' '}{spoken}
       </p>
       <form
@@ -4362,11 +4725,11 @@ function StudioConsole({
       >
         <input
           value={draft}
-          aria-label="Ordre pour Atlas"
-          placeholder="Écrivez un ordre ici, ou cliquez le visage pour parler"
+          aria-label="Command for Atlas"
+          placeholder="Type a command here, or click the face to speak"
           onChange={(event) => setDraft(event.target.value)}
         />
-        <button type="submit" disabled={pending || draft.trim().length < 2}>Exécuter</button>
+        <button type="submit" disabled={pending || draft.trim().length < 2}>Run</button>
       </form>
       <input
         ref={fileRef}
@@ -4410,7 +4773,7 @@ function Welcome({ console: panel }: { console: ReactNode }) {
     <div className={styles.welcome}>
       <p className={styles.kicker}><Icon name="spark" /> Studio</p>
       <h1>Qu’est-ce que tu veux confier à ton organisation ?</h1>
-      <p className={styles.lead}>Parlez à Atlas pour décrire le projet et piloter le studio. Rien ne démarre tant que vous n’activez pas l’équipe.</p>
+      <p className={styles.lead}>Talk to Atlas to describe the project and drive the studio. Nothing starts until you activate the team.</p>
       {panel}
     </div>
   )

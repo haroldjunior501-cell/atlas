@@ -8,7 +8,7 @@
  * inputs are scored locally, in the shape of fit/predict from the RAPIDS examples.
  */
 
-import { draftFromIntention, ORGANIZATION_PLAN_PROMPT, parseOrganizationPlan } from '@atlas/domain'
+import { draftFromIntention, lockToZtc } from '@atlas/domain'
 
 export interface AgentSignal {
   role: string
@@ -34,7 +34,6 @@ export interface NvidiaRuntime {
 export const NEMO_ROLES = ['CMO', 'CTO', 'CFO', 'Sales', 'Produit'] as const
 
 const NIM_MODEL = () => process.env.NVIDIA_NIM_MODEL ?? 'meta/llama-3.2-11b-vision-instruct'
-const PLAN_MODEL = 'nvidia/nemotron-3-super-120b-a12b'
 const LLM_BASE = () => (process.env.AGENT_LLM_BASE_URL || process.env.NVIDIA_LLM_URL || '').replace(/\/$/, '')
 const LLM_MODEL = () => process.env.AGENT_LLM_MODEL || process.env.NVIDIA_LLM_MODEL || NIM_MODEL()
 
@@ -90,7 +89,7 @@ export function localReply(agents: { firstName: string; role: string }[], foreca
 
 export async function askNim(intention: string, roster: string): Promise<string | null> {
   const messages = [
-    { role: 'system', content: 'Tu es ATLAS. Réponds en français, en deux phrases courtes, comme un directeur qui confirme la composition de l’équipe. Pas de liste technique.' },
+    { role: 'system', content: 'You are ATLAS. Reply in English, in two short sentences, like a director confirming the team setup. No technical list.' },
     { role: 'user', content: `Demande : ${intention}\nÉquipe : ${roster}` },
   ]
   if (LLM_BASE() && await llmAlive(LLM_BASE())) {
@@ -142,40 +141,7 @@ async function chatAt(
 }
 
 export async function planOrganization(intention: string): Promise<ReturnType<typeof draftFromIntention>> {
-  const key = process.env.NVIDIA_API_KEY
-  if (!key || key === 'test-key') return draftFromIntention(intention)
-  let correction = ''
-  for (let attempt = 0; attempt < 2; attempt += 1) {
-    const controller = new AbortController()
-    const timer = setTimeout(() => controller.abort(), 12000)
-    try {
-      const response = await fetch('https://integrate.api.nvidia.com/v1/chat/completions', {
-        method: 'POST',
-        signal: controller.signal,
-        headers: { authorization: `Bearer ${key}`, 'content-type': 'application/json' },
-        body: JSON.stringify({
-          model: PLAN_MODEL,
-          temperature: 0.3,
-          max_tokens: 900,
-          chat_template_kwargs: { enable_thinking: false },
-          messages: [
-            { role: 'system', content: ORGANIZATION_PLAN_PROMPT },
-            { role: 'user', content: correction ? `Demande : ${intention}\n${correction}` : `Demande : ${intention}` },
-          ],
-        }),
-      })
-      if (!response.ok) break
-      const body = (await response.json()) as { choices?: { message?: { content?: string } }[] }
-      const parsed = parseOrganizationPlan(body.choices?.[0]?.message?.content ?? '', intention)
-      if ('draft' in parsed) return parsed.draft
-      correction = `Le JSON précédent est invalide : ${parsed.error}. Renvoie uniquement un JSON corrigé.`
-    } catch {
-      break
-    } finally {
-      clearTimeout(timer)
-    }
-  }
-  return draftFromIntention(intention)
+  return draftFromIntention(lockToZtc(intention))
 }
 
 export async function answerFromMemory(question: string, dossier: string): Promise<string | null> {
@@ -198,7 +164,7 @@ export async function answerFromMemory(question: string, dossier: string): Promi
         messages: [
           {
             role: 'system',
-            content: 'Tu es ATLAS. Tu réponds au dirigeant en français, en trois phrases maximum. Tu n’utilises que la mémoire fournie. Si elle ne contient pas la réponse, dis-le. N’invente aucun employé, chiffre ou décision.',
+            content: 'You are ATLAS. Reply to the leader in English, three sentences max. Use only the provided memory. If it does not contain the answer, say so. Invent no employee, figure, or decision.',
           },
           {
             role: 'user',

@@ -157,7 +157,7 @@ export function ProjectToolView({
           </ScrollView>
 
           {filesLabel ? <Text style={styles.files}>{filesLabel}</Text> : null}
-          {status && status !== 'Je réfléchis.' ? <Text style={styles.status}>{status}</Text> : null}
+          {status && status !== 'Thinking…' ? <Text style={styles.status}>{status}</Text> : null}
           {pending ? <Text style={styles.status}>Atlas exécute l’outil…</Text> : null}
 
           {pack?.ideas?.length ? (

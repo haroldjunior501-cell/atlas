@@ -15,7 +15,12 @@ import {
   type CrewStep,
   type Recommendation,
 } from '@atlas/domain'
+import { ztcDeskOf } from '@atlas/domain'
 import { thinkWithModels } from '@/lib/ace-runtime'
+import { advertiseFromLive } from '@/lib/ztc-creative'
+import { ingestLines } from '@/lib/ztc-connect'
+import { deskSnapshot, formatDeskPrompt } from '@/lib/ztc-live'
+import { evolusCompare, evolusConfigured, evolusSummarize } from '@/lib/evolus'
 import { hostOf, webFetch, webSearch, type WebHit } from '@/lib/web-tools'
 
 /** Modèles rapides d’abord : une mission enchaîne des dizaines d’appels. */
@@ -47,11 +52,18 @@ interface Body {
 const today = () => new Date().toISOString().slice(0, 10)
 const money = (value: number) => `${value.toFixed(2).replace('.', ',')} €`
 
-function setting(body: Body) {
-  return [
+async function setting(body: Body) {
+  const lines = [
     body.organization ? `Entreprise : ${body.organization}.` : '',
     body.rules?.trim() ? `Règlement du bureau (à respecter) : ${body.rules.trim().slice(0, 1200)}` : '',
-  ].filter(Boolean).join('\n')
+  ]
+  try {
+    const desk = ztcDeskOf(`${body.agent ?? ''} ${body.mission ?? ''}`)?.firstName ?? 'Nova'
+    lines.push(formatDeskPrompt(await deskSnapshot(desk)))
+    const pushed = ingestLines(desk)
+    if (pushed) lines.push(pushed)
+  } catch { /* lecture live optionnelle */ }
+  return lines.filter(Boolean).join('\n')
 }
 
 const SOCIAL = /facebook|instagram|pinterest|youtube|tiktok|linkedin|twitter|x\.com|reddit/i
@@ -121,8 +133,8 @@ Tu as lu les pages ci-dessous (relevé du ${today()}). Règles strictes :
 - n’ajoute jamais une unité ou une période (/mois, /an, HT, TTC, par utilisateur) absente de la page : écris « période non précisée » ;
 - ce qui ne figure pas dans les pages est marqué « (estimation) » ;
 - une page qui parle d’autre chose (homonyme, autre secteur) est ignorée et signalée en une ligne « Écarté : … » ;
-- français, Markdown, phrases courtes, pas d’introduction.`
-  const user = `${setting(body)}
+- English, Markdown, short sentences, no introduction.`
+  const user = `${await setting(body)}
 Mission écrite par ATLAS :
 ${step.brief}
 
@@ -130,7 +142,7 @@ Pages lues :
 ${sources.map((source, index) => `[${index + 1}] ${source.title} — ${source.url}\n${source.text.slice(0, 3200)}`).join('\n\n') || 'aucune page lisible : dis-le et donne seulement des pistes marquées (estimation).'}
 
 Rends le rapport : un titre « # ${step.target ?? step.title} – relevé du ${today()} », les sections demandées, puis « ## Sources » avec [n] URL.`
-  const raw = (await nemotron(system, user, 1100, 45000)).trim()
+  const raw = (await nemotron(system, user, 1800, 70000)).trim()
   let report = raw.length > 120 ? raw : researchFallback(step, sources)
   if (!/##\s*sources/i.test(report) && sources.length) report += `\n\n## Sources\n${sources.map((source, index) => `[${index + 1}] ${source.url}`).join('\n')}`
   return { report, tokens: tokensOf(system, user, raw), model: raw.length > 120 }
@@ -182,7 +194,7 @@ async function analyse(body: Body, step: CrewStep, agent: string) {
 Tu mets les chiffres des chercheurs dans un tableau comparatif et tu recommandes. N’invente aucun chiffre : uniquement ceux des rapports et des calculs fournis.
 Réponds UNIQUEMENT en JSON :
 {"title":"…","columns":["Marque","…"],"rows":[["…","…"]],"recommendations":[{"label":"Produit 250 g","value":14.9}],"notes":"2 phrases"}`
-  const user = `${setting(body)}
+  const user = `${await setting(body)}
 Mission écrite par ATLAS :
 ${step.brief}
 
@@ -191,7 +203,7 @@ ${computed || 'aucun prix au kilo calculable'}
 
 Rapports des chercheurs :
 ${inputs.map((input) => `### ${input.title}${input.agent ? ` (${input.agent})` : ''}\n${input.report.slice(0, 2600)}`).join('\n\n')}`
-  const raw = await nemotron(system, user, 1300, 50000)
+  const raw = await nemotron(system, user, 2200, 80000)
   let table: Table = { columns: [], rows: [] }
   let recommendations: Recommendation[] = []
   let title = 'Tableau comparatif'
@@ -225,6 +237,7 @@ ${inputs.map((input) => `### ${input.title}${input.agent ? ` (${input.agent})` :
   }
   const corpus = inputs.map((input) => input.report).join('\n') + computed
   table = flagInvented(table, corpus)
+  const viaEvolus = await partnerEvolus(inputs)
   const report = [
     `# ${title}`,
     '',
@@ -233,8 +246,27 @@ ${inputs.map((input) => `### ${input.title}${input.agent ? ` (${input.agent})` :
     computed ? `## Calculs\n${computed.split('\n').map((line) => `- ${line}`).join('\n')}` : '',
     recommendations.length ? `## Recommandation\n${recommendations.map((item) => `- ${item.label} : **${money(item.value)}**`).join('\n')}` : '',
     notes ? `\n${notes}` : '',
+    viaEvolus ? `\n## Evolus (AI Tools)\n${viaEvolus}` : '',
   ].filter(Boolean).join('\n')
-  return { report, table, recommendations, tokens: tokensOf(system, user, raw), model: usedModel }
+  return { report, table, recommendations, tokens: tokensOf(system, user, raw), model: usedModel, evolus: Boolean(viaEvolus) }
+}
+
+/** Prix partenaire : summarize + compare. Jamais bloquant si Evolus est absent. */
+async function partnerEvolus(inputs: Input[]) {
+  if (!evolusConfigured()) return ''
+  const first = inputs[0]?.report?.slice(0, 4000) ?? ''
+  const second = inputs[1]?.report?.slice(0, 4000) ?? ''
+  try {
+    if (first && second) {
+      const compared = await evolusCompare(first, second)
+      if ('text' in compared && compared.text) return compared.text.slice(0, 900)
+    }
+    if (first) {
+      const summary = await evolusSummarize(first)
+      if ('text' in summary && summary.text) return summary.text.slice(0, 900)
+    }
+  } catch { /* partenaire optionnel */ }
+  return ''
 }
 
 function siteTemplate(body: Body, recommendations: Recommendation[], inputs: Input[]) {
@@ -246,7 +278,7 @@ function siteTemplate(body: Body, recommendations: Recommendation[], inputs: Inp
   const cards = (recommendations.length ? recommendations : [{ label: 'Offre découverte', value: 0 }])
     .map((item) => `<article><h3>${item.label}</h3><p class="price">${item.value ? money(item.value) : 'Sur demande'}</p></article>`)
     .join('')
-  return `<!doctype html><html lang="fr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${brand}</title>
+  return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${brand}</title>
 <style>*{box-sizing:border-box}body{margin:0;font-family:Georgia,serif;background:#f6efe6;color:#2b1d14}header{padding:48px 22px 28px;background:#2b1d14;color:#f6efe6}h1{margin:0 0 8px;font-size:34px}header p{margin:0;opacity:.8;font-family:system-ui}main{max-width:480px;margin:auto;padding:22px}article{background:#fffaf3;border:1px solid #e7d6c3;border-radius:16px;padding:18px;margin:0 0 14px}h3{margin:0 0 6px}.price{font:700 22px system-ui;color:#9a4a1c;margin:0}footer{padding:24px;text-align:center;font:12px system-ui;opacity:.7}</style></head>
 <body><header><h1>${brand}</h1><p>${(body.mission ?? '').slice(0, 140)}</p></header><main>${cards}</main>
 <footer>Positionnement établi face à ${points.join(', ') || 'le marché'} · relevé du ${today()}</footer></body></html>`
@@ -260,31 +292,39 @@ async function design(body: Body, step: CrewStep, agent: string) {
 C’est le site de lancement de NOTRE marque${body.organization ? ` (« ${body.organization} »)` : ' (propose un nom court et élégant)'}, pas un comparatif des concurrents : accroche, gamme de produits avec leurs prix, ce qui nous différencie (tiré de l’analyse), appel à l’action. Ne cite jamais les concurrents sur le site.
 Tu rends UNIQUEMENT un fichier HTML complet, de <!doctype html> à </html> : CSS dans une balise <style>, pensé pour téléphone (max-width 480px), typographie soignée, aucune ressource externe (SVG inline autorisé), aucun script.
 ${prices ? `Prix à afficher EXACTEMENT : ${prices}.` : 'N’affiche aucun prix inventé.'}`
-  const user = `${setting(body)}
+  const user = `${await setting(body)}
 Mission écrite par ATLAS :
 ${step.brief}
 
 Livrables de l’équipe :
 ${inputs.map((input) => `### ${input.title}\n${input.report.slice(0, 1400)}`).join('\n\n')}`
-  const raw = await nemotron(system, user, 3200, 100000)
+  const raw = await nemotron(system, user, 4800, 140000)
   const html = raw.match(/<!doctype html[\s\S]*<\/html>/i)?.[0] ?? raw.match(/<html[\s\S]*<\/html>/i)?.[0] ?? ''
   const usable = html.length > 400
   const site = usable ? html : siteTemplate(body, recommendations, inputs)
   const sections = [...site.matchAll(/<h[12][^>]*>([\s\S]*?)<\/h[12]>/gi)].map((match) => match[1]!.replace(/<[^>]+>/g, '').trim()).filter(Boolean).slice(0, 5)
-  const report = `# Site livré · index.html\n\n- ${Math.round(site.length / 1024)} Ko, un seul fichier, pensé pour le téléphone\n${sections.length ? `- Sections : ${sections.join(' · ')}\n` : ''}- Prix affichés : ${pricesIn(site).slice(0, 6).map((hit) => hit.raw).join(', ') || 'aucun'}`
-  return { report, html: site, tokens: tokensOf(system, user, raw), model: usable }
+  let report = `# Site livré · index.html\n\n- ${Math.round(site.length / 1024)} Ko, un seul fichier, pensé pour le téléphone\n${sections.length ? `- Sections : ${sections.join(' · ')}\n` : ''}- Prix affichés : ${pricesIn(site).slice(0, 6).map((hit) => hit.raw).join(', ') || 'aucun'}`
+  let image: string | undefined
+  if (/pub|visuel|campagne|image|publicit|flare/i.test(`${body.mission} ${step.brief}`)) {
+    try {
+      const ad = await advertiseFromLive(body.mission ?? '')
+      image = ad.image.dataUrl
+      report += `\n\n## Visuel Flare\n${ad.image.summary}\nSKU live : ${ad.product.title} · ${ad.price}`
+    } catch { /* FLUX optionnel : le HTML reste le livrable */ }
+  }
+  return { report, html: site, image, tokens: tokensOf(system, user, raw), model: usable }
 }
 
 async function write(body: Body, step: CrewStep, agent: string, role: CrewRole) {
   const info = CREW_ROLES[role]
   const system = `Tu es ${agent}, ${info.label.toLowerCase()} de l’équipe ATLAS (outils : ${info.tools.join(', ')}). ${info.does}
 N’invente aucun chiffre : reprends ceux des livrables, sinon écris « (estimation) ». Français, Markdown, livrable prêt à l’emploi.${step.via ? ' Prépare un brouillon : l’envoi réel passe par le connecteur, après accord.' : ''}`
-  const user = `${setting(body)}
+  const user = `${await setting(body)}
 Mission écrite par ATLAS :
 ${step.brief}
 
 ${(body.inputs ?? []).length ? `Livrables de l’équipe :\n${(body.inputs ?? []).map((input) => `### ${input.title}\n${input.report.slice(0, 1600)}`).join('\n\n')}` : ''}`
-  const raw = (await nemotron(system, user, 1300, 50000)).trim()
+  const raw = (await nemotron(system, user, 2200, 80000)).trim()
   const report = raw.length > 60 ? raw : `# ${step.title}\n\nJe n’ai pas pu joindre le modèle. Voici le cadre :\n\n${step.brief}`
   return { report, tokens: tokensOf(system, user, raw), model: raw.length > 60 }
 }
@@ -296,10 +336,10 @@ export async function POST(request: Request) {
 
   if (body.op === 'plan') {
     if (mission.length < 6) return Response.json({ error: 'mission' }, { status: 400 })
-    const user = `${setting(body)}
+    const user = `${await setting(body)}
 Équipe du bureau : ${(body.team ?? []).join(', ') || 'à composer'}.
 Mission : ${mission}`
-    const raw = await nemotron(CREW_PLAN_PROMPT, user, 1600, 30000)
+    const raw = await nemotron(CREW_PLAN_PROMPT, user, 2400, 60000)
     const plan = planFromModel(raw, mission)
     return Response.json({ plan: plan ?? fallbackPlan(mission), source: plan ? 'model' : 'local', tokens: tokensOf(CREW_PLAN_PROMPT, user, raw) })
   }
@@ -351,12 +391,12 @@ Mission : ${mission}`
       ? `Les livrables sont là, mais ils ne sont pas alignés. L’analyste recommande ${mismatches.map((item) => money(item.expected)).join(' et ')}, alors que le site affiche ${mismatches.map((item) => (item.found !== null ? money(item.found) : '—')).join(' et ')}.`
       : ''
     const inputs = body.inputs ?? []
-    const system = 'Tu es ATLAS, le chef. Tu as relu tous les livrables. Résume le résultat de la mission en 5 lignes maximum, en français, factuel, sans inventer de chiffre.'
+    const system = 'You are ATLAS, the lead. You reviewed all deliverables. Summarize the mission result in 5 lines max, in English, factual, invent no figures.'
     const fixNote = mismatches.length && fixed
       ? `Écart repéré puis CORRIGÉ par toi : le site affiche désormais ${mismatches.map((item) => money(item.expected)).join(' et ')}, comme l’analyste. Les livrables sont alignés ; ne parle pas d’incohérence restante.\n`
       : message ? `Écart repéré, correction partielle : ${message}\n` : ''
     const user = `Mission : ${mission}\n${fixNote}\n${inputs.map((input) => `### ${input.title}\n${input.report.slice(0, 900)}`).join('\n\n')}`
-    const raw = (await nemotron(system, user, 380, 25000)).trim()
+    const raw = (await nemotron(system, user, 900, 45000)).trim()
     const summary = raw || [
       `Mission terminée : ${inputs.length} livrable${inputs.length > 1 ? 's' : ''}.`,
       ...inputs.slice(0, 3).map((input) => `${input.title} : ${input.report.replace(/[#*|>-]/g, ' ').replace(/\s+/g, ' ').slice(0, 90).trim()}…`),

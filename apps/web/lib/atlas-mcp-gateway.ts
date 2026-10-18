@@ -320,9 +320,9 @@ async function runGmail(link: StoredLink, tool: string, args: Record<string, unk
     const query = String(args.query || 'in:inbox')
     const id = String(args.messageId || '').trim() || await latestInboxId(headers, query)
     const mail = await fetchGmailMessage(headers, id)
-    const system = `Tu rédiges une réponse e-mail en français, professionnelle et humaine.
-Réponds UNIQUEMENT avec le corps du mail (pas de sujet, pas de JSON, pas de markdown).
-Adapte-toi au contenu reçu. Sois concis (8–12 lignes max). Signe "Cordialement".`
+    const system = `You draft a professional, human email reply in English (mirror the original mail language if clearly different).
+Reply ONLY with the email body (no subject, no JSON, no markdown).
+Match the received content. Be concise (8–12 lines max). Sign "Best regards".`
     const user = `Instruction de l’utilisateur : ${instruction}
 
 De : ${mail.from}
@@ -966,6 +966,26 @@ async function runTokenProvider(link: StoredLink, tool: string, args: Record<str
     const key = secrets.CANVA_API_TOKEN
     if (!key) throw new Error('Token Canva manquant.')
     return 'Canva relié. Publication bloquée tant que l’API métier n’est pas appelée.'
+  }
+
+  if (provider === 'evolus') {
+    const { evolusChat, evolusCompare, evolusSummarize } = await import('./evolus')
+    if (tool === 'summarize') {
+      const result = await evolusSummarize(String(args.text || args.input || ''))
+      if ('error' in result) throw new Error(result.error)
+      return result.text || 'Résumé Evolus vide.'
+    }
+    if (tool === 'compare') {
+      const result = await evolusCompare(String(args.text || ''), String(args.other || args.secondaryText || ''))
+      if ('error' in result) throw new Error(result.error)
+      return result.text || 'Comparaison Evolus vide.'
+    }
+    if (tool === 'chat') {
+      const result = await evolusChat(String(args.text || args.input || ''))
+      if ('error' in result) throw new Error(result.error)
+      return result.text || 'Réponse Evolus vide.'
+    }
+    throw new Error(`Outil Evolus inconnu : ${tool}`)
   }
 
   return `${connectorOf(provider)?.label ?? provider} est relié (clé API). Outil « ${tool} » pas encore mappé.`

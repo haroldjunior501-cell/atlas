@@ -16,9 +16,11 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context'
 import Svg, { Path } from 'react-native-svg'
 import { AssistantStage } from '../components/assistant-stage'
+import { VoiceEar } from '../components/voice-ear'
 import { HomeDrawer, type Place } from '../components/home-drawer'
 import { PlaceChatView, type ChatTurn } from '../components/place-chat'
 import { PlaceHubView } from '../components/place-hub'
+import { OrgBoardView } from '../components/org-board'
 import { LibraryView } from '../components/library-view'
 import { PluginConnectModal } from '../components/plugin-connect-modal'
 import { PluginGalleryView } from '../components/plugin-gallery'
@@ -29,16 +31,25 @@ import { fetchLatestChart } from '../lib/api'
 import { fetchConnectLinks, linkedProvidersOf } from '../lib/connect'
 import { webOrigin } from '../lib/config'
 import { startDictation, stopDictation } from '../lib/dictate'
+import {
+  cancelListen,
+  forceEndListen,
+  isVoiceEarReady,
+  listenOnce,
+  setLiveTranscriptHandler,
+} from '../lib/listen'
 import { captureDocument, filesPrompt, pickDocuments, type AtlasFile } from '../lib/files'
 import {
   importAtlasFiles,
   listLibrary,
   prepareLibraryAsk,
   removeLibraryItem,
+  saveAtlasArtifact,
+  wantsLibraryImage,
   type LibraryItem,
 } from '../lib/library'
 import { absorbLifeOrder, listTasks, newTask, toggleTask, upsertTask, type LifeTask } from '../lib/life'
-import { atlasFrame, chatKey, hubFor, isNavOnly, roomOf, routeFromOrder, type PlaceRoom } from '../lib/places'
+import { atlasFrame, chatKey, hubFor, isNavOnly, isStudioOrPcOrder, roomOf, routeFromOrder, type PlaceRoom } from '../lib/places'
 import { connectorOf, matchPluginOrder, pluginPrompt, type ConnectorDescriptor } from '../lib/plugins'
 import { parseProjectPack, spokenForPack, toolPrompt, type ProjectPack } from '../lib/project-tools'
 import { type SkillKind } from '../lib/skills'
@@ -95,6 +106,8 @@ export default function HomeScreen() {
   const [loading, setLoading] = useState(true)
   const [menuOpen, setMenuOpen] = useState(false)
   const [draft, setDraft] = useState('')
+  const draftRef = useRef('')
+  draftRef.current = draft
   const [script, setScript] = useState('')
   const [spoken, setSpoken] = useState('')
   const [listening, setListening] = useState(false)
@@ -162,8 +175,18 @@ export default function HomeScreen() {
       cancelVoice.current?.()
       voiceSink.current = null
       stopAtlasSpeech()
+      setLiveTranscriptHandler(null)
     }
   }, [])
+
+  // Ce que tu dis s’écrit en direct dans la barre de chat
+  useEffect(() => {
+    setLiveTranscriptHandler((text) => {
+      setDraft(text)
+      setSpoken((prev) => (dictating || listening ? `« ${text} »` : prev))
+    })
+    return () => setLiveTranscriptHandler(null)
+  }, [dictating, listening])
 
   function stopTalking() {
     sayGen.current += 1
@@ -180,14 +203,32 @@ export default function HomeScreen() {
     cancelVoice.current?.()
     cancelVoice.current = null
     stopAtlasSpeech()
-    setEngine('neural')
     setScript(text)
-    setSpoken((prev) => (prev === 'Je réfléchis.' ? prev : ''))
+    setSpoken((prev) => (prev === 'Thinking…' ? prev : ''))
     setCursor(0)
     setSpeaking(true)
     const lag = openCaptionLag(text, (slice) => {
       if (sayGen.current === gen) setSpoken(slice)
     })
+    // Confirmations courtes (« C’est fait… ») : voix appareil immédiate = conversation fluide
+    const preferDevice = text.length < 110 || /^c['’]est fait/i.test(text)
+    if (preferDevice) {
+      setEngine('device')
+      lag.arm()
+      await speakAtlas(text, (next) => {
+        if (sayGen.current !== gen) return
+        setCursor(next.char)
+        if (next.speaking) lag.note(next.char)
+      })
+      await wait(CAPTION_LAG)
+      lag.stop()
+      if (sayGen.current === gen) {
+        setSpoken(text)
+        setSpeaking(false)
+      }
+      return
+    }
+    setEngine('neural')
     const neural = await new Promise<boolean>((resolve) => {
       let started = false
       let settled = false
@@ -204,7 +245,7 @@ export default function HomeScreen() {
       }
       const finishFalse = () => finish(false)
       cancelVoice.current = finishFalse
-      timer = setTimeout(() => finish(false), 18000)
+      timer = setTimeout(() => finish(false), 2800)
       voiceSink.current = (event, char) => {
         if (sayGen.current !== gen) return
         if (event === 'start') {
@@ -312,11 +353,12 @@ export default function HomeScreen() {
     setPending(true)
     setListening(false)
     setSpeaking(false)
-    setSpoken('Je réfléchis.')
+    setSpoken('Thinking…')
 
     const stayInTool = (place === 'projects' || place === 'plugins') && Boolean(roomId)
-    const pluginHit = !stayInTool && text.length >= 2 ? matchPluginOrder(text) : null
-    const routed = text.length >= 2 && !stayInTool ? routeFromOrder(text) : null
+    const pluginHit = !stayInTool && text.length >= 2 && !isStudioOrPcOrder(text) ? matchPluginOrder(text) : null
+    // Studio / PC / site ZTC : rester sur l’accueil ATLAS et exécuter via le pilot (pas de nav mobile).
+    const routed = text.length >= 2 && !stayInTool && !isStudioOrPcOrder(text) ? routeFromOrder(text) : null
     let here = place
     let hereRoom = roomOf(place, roomId)
     let pluginId = place === 'plugins' ? roomId : null
@@ -376,10 +418,12 @@ export default function HomeScreen() {
       const image = attached.find((file) => file.image)?.image
       const result = await askAtlas(job, orgId, session?.name, {
         image,
-        skill: hereRoom?.skill || skill,
+        // « voice » ne doit pas bloquer le raisonnement — seulement le canal micro
+        skill: hereRoom?.skill || (skill === 'voice' ? null : skill),
         context: atlasFrame(here, hereRoom, job, session?.name, activePlugin?.label),
       })
       setDraft('')
+      if (skill === 'voice') setSkill(null)
       let voice = result.reply
       if (key) {
         const written = result.board?.body && result.board.body.length > result.reply.length ? result.board.body : result.reply
@@ -442,6 +486,33 @@ export default function HomeScreen() {
         }
         setTasks(await listTasks())
       }
+      // Bibliothèque : seulement créations utiles (pas les confirmations UI Studio)
+      if (!result.studio && result.source !== 'studio-remote' && (wantsLibraryImage(text) || /rapport|facture|document|bilan|g[eé]n[eè]re/i.test(text))) {
+        try {
+          const written = result.board?.body && result.board.body.length > (result.reply?.length || 0)
+            ? result.board.body
+            : result.reply
+          const saved = await saveAtlasArtifact({
+            ask: text,
+            title: result.board?.title || (wantsLibraryImage(text) ? 'Image ATLAS' : undefined),
+            body: written,
+            reply: result.reply,
+            author: 'ATLAS',
+            note: hereRoom?.title || here,
+            hint: /facture|invoice/i.test(text + written)
+              ? 'invoice'
+              : /rapport|bilan|brief/i.test(text + (result.board?.title || ''))
+                ? 'report'
+                : wantsLibraryImage(text)
+                  ? 'image'
+                  : 'auto',
+          })
+          if (saved) {
+            void refreshLibrary()
+            voice = `${voice} ${saved.summary}`.trim()
+          }
+        } catch { /* ne bloque pas la conversation */ }
+      }
       if (!orgId) {
         const chart = await fetchLatestChart().catch(() => null)
         if (chart?.organization?.id) setOrgId(chart.organization.id)
@@ -463,6 +534,8 @@ export default function HomeScreen() {
 
   function goPlace(next: Place) {
     if (next !== 'home') void endVoiceSession(false)
+    // Organisation / autres sections : l’assistante ATLAS se tait (elle reste sur l’accueil).
+    if (next !== 'home') stopTalking()
     setMenuOpen(false)
     setRoomId(null)
     setPlace(next)
@@ -473,23 +546,118 @@ export default function HomeScreen() {
     if (next === 'library') void refreshLibrary()
   }
 
-  async function beginListen() {
+  const finishingVoice = useRef(false)
+  const cloudFallback = useRef(false)
+
+  async function handleHeard(text: string) {
+    if (finishingVoice.current || pending) return
+    finishingVoice.current = true
+    setDictating(false)
+    setListening(false)
+    try {
+      const heard = text.trim()
+      if (!heard) {
+        if (!voiceSession.current) return
+        setSpoken('Je n’ai pas saisi. Reparle clairement.')
+        await say('I didn't catch that. Speak again — I'm listening.')
+        if (voiceSession.current && placeRef.current === 'home') {
+          try { await beginListen() } catch {
+            voiceSession.current = false
+            setVoiceOn(false)
+          }
+        }
+        return
+      }
+      setDraft(heard)
+      setSpoken(`J’ai compris : « ${heard} »`)
+      setSkill(null)
+      // Laisse le texte visible dans la barre pendant l’exécution
+      await execute(heard)
+      if (voiceSession.current && placeRef.current === 'home') {
+        try { await beginListen() } catch (err) {
+          voiceSession.current = false
+          setVoiceOn(false)
+          Alert.alert('Micro', err instanceof Error ? err.message : 'Micro indisponible.')
+        }
+      }
+    } finally {
+      finishingVoice.current = false
+    }
+  }
+
+  /** Écoute native — les mots s’écrivent dans la barre, puis Atlas exécute. */
+  async function beginListenNative() {
     stopTalking()
-    await startDictation()
+    cancelListen()
+    try {
+      const audio = require('expo-audio') as typeof import('expo-audio')
+      const perm = await audio.requestRecordingPermissionsAsync()
+      if (!perm.granted) throw new Error('Autorise le micro pour qu’Atlas t’entende.')
+    } catch (err) {
+      if (err instanceof Error && /Autorise/.test(err.message)) throw err
+    }
+    setDraft('')
     setDictating(true)
     setListening(true)
-    setSpoken('Je t’écoute. Parle, puis appuie encore pour envoyer.')
+    setSpoken('I'm listening — speak, the text appears here ↓')
+    cloudFallback.current = false
+    const text = await listenOnce(28000)
+    const heard = text.trim() || draftRef.current.trim()
+    await handleHeard(heard)
+  }
+
+  /** Secours : enregistrement + Whisper (si Web Speech indisponible). */
+  async function beginListenCloud() {
+    stopTalking()
+    cloudFallback.current = true
+    setDraft('')
+    draftRef.current = ''
+    setDictating(true)
+    setListening(true)
+    setSpoken('I'm listening — speak… the text will go in the bar.')
+    await startDictation(() => { void finishCloudUtterance() })
+  }
+
+  async function finishCloudUtterance() {
+    if (finishingVoice.current || pending) return
+    finishingVoice.current = true
+    setDictating(false)
+    setListening(false)
+    setSpoken('Je comprends ce que tu dis…')
+    try {
+      const text = await stopDictation()
+      if (text.trim()) {
+        setDraft(text.trim())
+        draftRef.current = text.trim()
+      }
+      await handleHeard(text.trim() || draftRef.current.trim())
+    } finally {
+      finishingVoice.current = false
+    }
+  }
+
+  async function beginListen() {
+    finishingVoice.current = false
+    // Attendre que VoiceEar soit prêt (max ~1,5 s)
+    for (let i = 0; i < 15 && !isVoiceEarReady(); i += 1) {
+      await wait(100)
+    }
+    if (isVoiceEarReady()) {
+      await beginListenNative()
+      return
+    }
+    await beginListenCloud()
   }
 
   async function endVoiceSession(bye = true) {
     voiceSession.current = false
     setVoiceOn(false)
+    finishingVoice.current = false
+    cancelListen()
     if (dictating) {
       setDictating(false)
-      try {
-        await stopDictation()
-      } catch {
-        /* ignore */
+      if (cloudFallback.current) {
+        try { await stopDictation() } catch { /* ignore */ }
       }
     }
     setListening(false)
@@ -500,40 +668,17 @@ export default function HomeScreen() {
   }
 
   async function toggleVoiceChat() {
-    if (pending) return
+    if (pending || finishingVoice.current) return
     try {
       if (dictating) {
-        setDictating(false)
-        setListening(false)
-        setSpoken('Je transcris…')
-        const text = await stopDictation()
-        if (!text.trim()) {
-          await say('Je n’ai rien entendu. Réessaie.')
-          if (voiceSession.current && placeRef.current === 'home') {
-            try {
-              await beginListen()
-            } catch {
-              voiceSession.current = false
-              setVoiceOn(false)
-            }
-          }
-          return
-        }
-        setDraft(text)
-        setSkill('voice')
-        await execute(text)
-        if (voiceSession.current && placeRef.current === 'home') {
-          try {
-            await beginListen()
-          } catch (err) {
-            voiceSession.current = false
-            setVoiceOn(false)
-            Alert.alert('Micro', err instanceof Error ? err.message : 'Micro indisponible.')
-          }
+        if (cloudFallback.current) {
+          await finishCloudUtterance()
+        } else {
+          // Coupe la reconnaissance → envoie le texte déjà entendu
+          forceEndListen()
         }
         return
       }
-
       if (!voiceSession.current) {
         voiceSession.current = true
         setVoiceOn(true)
@@ -542,8 +687,17 @@ export default function HomeScreen() {
     } catch (err) {
       setDictating(false)
       setListening(false)
+      // Si Web Speech échoue → bascule enregistrement cloud
+      const msg = err instanceof Error ? err.message : ''
+      if (!cloudFallback.current && /prête|unsupported|reconnaissance|Micro/i.test(msg)) {
+        try {
+          await beginListenCloud()
+          return
+        } catch { /* fallthrough */ }
+      }
       voiceSession.current = false
       setVoiceOn(false)
+      finishingVoice.current = false
       Alert.alert('Micro', err instanceof Error ? err.message : 'Conversation vocale impossible.')
     }
   }
@@ -565,8 +719,30 @@ export default function HomeScreen() {
         skill: prepared.skill,
         context: atlasFrame('library', null, prepared.text, session?.name),
       })
-      setSpoken(result.reply)
-      await say(result.reply)
+      let voice = result.reply
+      const written = result.board?.body && result.board.body.length > result.reply.length
+        ? result.board.body
+        : result.reply
+      try {
+        const saved = await saveAtlasArtifact({
+          ask: ask || `Analyse ${item.name}`,
+          title: result.board?.title || `Analyse — ${item.name}`,
+          body: written,
+          author: 'ATLAS',
+          note: item.name,
+          hint: /facture|invoice/i.test(`${item.name} ${ask || ''} ${written}`)
+            ? 'invoice'
+            : /rapport/i.test(`${ask || ''} ${written}`)
+              ? 'report'
+              : 'document',
+        })
+        if (saved) {
+          await refreshLibrary()
+          voice = `${voice} ${saved.summary}`.trim()
+        }
+      } catch { /* ignore */ }
+      setSpoken(voice)
+      await say(voice)
     } catch (err) {
       const line = err instanceof Error ? err.message : 'Analyse impossible.'
       setSpoken(line)
@@ -654,6 +830,7 @@ export default function HomeScreen() {
   return (
     <View style={styles.root}>
       <LinearGradient colors={['#000000', '#050510', '#000000']} style={StyleSheet.absoluteFill} />
+      <VoiceEar />
 
       <View
         pointerEvents={place === 'home' ? 'auto' : 'none'}
@@ -695,10 +872,10 @@ export default function HomeScreen() {
               </Svg>
               <Text style={styles.badgeText}>
                 {dictating
-                  ? 'Je t’écoute — appuie pour envoyer'
+                  ? 'Speak: text appears in the bar'
                   : voiceOn
-                    ? 'Conversation vocale'
-                    : 'Assistance vocale'}
+                    ? 'Voice conversation on'
+                    : 'Voice assistant'}
               </Text>
             </View>
 
@@ -714,7 +891,7 @@ export default function HomeScreen() {
 
             <Text style={styles.atlasLine}>
               {spoken}
-              {speaking && spoken.length > 0 && spoken !== 'Je réfléchis.' && spoken.length < script.length ? ' ▍' : ''}
+              {speaking && spoken.length > 0 && spoken !== 'Thinking…' && spoken.length < script.length ? ' ▍' : ''}
             </Text>
 
             {files.length ? (
@@ -726,7 +903,7 @@ export default function HomeScreen() {
                 style={styles.input}
                 value={draft}
                 onChangeText={setDraft}
-                placeholder="Écris ici, ou tape le visage pour parler"
+                placeholder="Parle : ton texte s’écrit ici…"
                 placeholderTextColor="rgba(255,255,255,0.35)"
                 returnKeyType="send"
                 onSubmitEditing={() => void execute()}
@@ -750,7 +927,7 @@ export default function HomeScreen() {
 
             <View style={styles.actions}>
               <QuietAction
-                label={dictating ? 'Envoyer' : voiceOn ? 'Écouter' : 'Parler'}
+                label={dictating ? 'Comprendre' : voiceOn ? 'Écouter' : 'Parler'}
                 icon="mic"
                 onPress={() => void toggleVoiceChat()}
               />
@@ -762,7 +939,7 @@ export default function HomeScreen() {
             </View>
 
             <Text style={styles.footnote}>
-              Tape le visage ou Parler : dis ton message, retape pour envoyer. Atlas répond à voix haute, puis réécoute.
+              Speak: what you say appears in the bar. When you pause, Atlas runs it, replies, then listens again.
             </Text>
           </ScrollView>
         </KeyboardAvoidingView>
@@ -827,7 +1004,7 @@ export default function HomeScreen() {
         </View>
       ) : null}
 
-      {place !== 'home' && place !== 'plugins' && place !== 'library' && hub && !activeRoom ? (
+      {place !== 'home' && place !== 'plugins' && place !== 'library' && place !== 'study' && hub && !activeRoom ? (
         <View style={styles.overlay}>
           <PlaceHubView
             hub={hub}
@@ -860,7 +1037,17 @@ export default function HomeScreen() {
         </View>
       ) : null}
 
-      {place !== 'home' && place !== 'projects' && place !== 'plugins' && place !== 'library' && hub && activeRoom ? (
+      {place === 'study' ? (
+        <View style={styles.overlay}>
+          <OrgBoardView
+            pending={pending}
+            onBack={() => goPlace('home')}
+            onMenu={() => setMenuOpen(true)}
+          />
+        </View>
+      ) : null}
+
+      {place !== 'home' && place !== 'projects' && place !== 'plugins' && place !== 'library' && place !== 'study' && hub && activeRoom ? (
         <View style={styles.overlay}>
           <PlaceChatView
             title={activeRoom.title}

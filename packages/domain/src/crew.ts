@@ -114,6 +114,7 @@ export const CREW_CONNECTORS: Array<{ provider: string; label: string; test: Reg
   { provider: 'fossbilling', label: 'FOSSBilling', test: /fossbilling|facture h[eé]berg/i },
   { provider: 'cloudflare', label: 'Cloudflare', test: /cloudflare|\bdns\b/i },
   { provider: 'resellerclub', label: 'ResellerClub', test: /resellerclub|registrar|enregistrer (?:un )?domaine/i },
+  { provider: 'evolus', label: 'Evolus', test: /\bevolus\b/i },
 ]
 
 export function connectorIn(text: string) {
@@ -157,6 +158,8 @@ export function countIn(mission: string): number {
 
 /** Plan local si le modèle ne répond pas : mêmes métiers, mêmes dépendances. */
 export function fallbackPlan(mission: string): CrewPlan {
+  const ztc = ztcOpsPlan(mission)
+  if (ztc) return ztc
   const steps: CrewStep[] = []
   const named = targetsIn(mission)
   const count = Math.max(named.length, countIn(mission))
@@ -212,6 +215,112 @@ export function fallbackPlan(mission: string): CrewPlan {
   return {
     summary: `${steps.length} agent${steps.length > 1 ? 's' : ''} : ${[...new Set(steps.map((step) => CREW_ROLES[step.role].label.toLowerCase()))].join(', ')}.`,
     steps,
+  }
+}
+
+function ztcOpsPlan(mission: string): CrewPlan | null {
+  if (!/\bztc\b|ztchosting|cpanel|\bwhm\b|fossbilling|ticket support|mon site est lent|auto ?ssl|starter hosting|n8n|openclaw|scan|vuln|faille|hsts|csp|rapidit|ttfb|vitesse|\blent\b|publicit|visuel|campagne|flux|vid[eé]o|clip|trafic|traffic|seo|landing|\/order|banni[eè]re|accroche|marketing/i.test(mission)) return null
+  const subject = mission.replace(/\s+/g, ' ').trim()
+  const via = connectorIn(mission)?.provider
+  if (/rapidit|perf|ttfb|vitesse|\blent\b/i.test(subject)) {
+    return {
+      summary: 'Swift mesure le TTFB réel, puis diagnostic et runbook — aucune écriture.',
+      steps: [
+        { id: 'r-speed', role: 'chercheur', title: 'Mesure Swift', target: 'ZTC Hosting', brief: `Mesure TTFB et HTTP de ztchosting.com, /order, /login, guest API et DEVOID /health pour : « ${subject} ». Chiffres observés seulement.`, dependsOn: [], queries: ['ztchosting.com', 'ztchosting.com/order'] },
+        { id: 'analyse', role: 'analyste', title: 'Diagnostic performance', brief: `À partir des TTFB mesurés : goulot, pages lentes, ce qui reste à confirmer. Pas de SLA inventé. Mission : « ${subject} ».`, dependsOn: ['r-speed'] },
+        { id: 'runbook', role: 'redacteur', title: 'Runbook Swift', brief: `Runbook R0 pour : « ${subject} ». Seuils observés, prochaines mesures, rien à changer en production.`, dependsOn: ['analyse'], approval: permissionFor(mission), via },
+      ],
+    }
+  }
+  if (/vuln|cve|faille|hardening|csp|hsts/i.test(subject)) {
+    return {
+      summary: 'Aegis lit la surface publique et liste les écarts de durcissement — aucun exploit.',
+      steps: [
+        { id: 'r-vuln', role: 'chercheur', title: 'Surface Aegis', target: 'ZTC Hosting', brief: `Relevé des en-têtes publics (HSTS, CSP, X-Content-Type, Referrer-Policy) de ztchosting.com pour : « ${subject} ». Aucun PoC, aucun scan agressif.`, dependsOn: [], queries: ['ztchosting.com security headers', 'ztchosting.com HSTS'] },
+        { id: 'analyse', role: 'analyste', title: 'Écarts de durcissement', brief: `Classe les en-têtes manquants vs présents. Risque descriptif seulement. Mission : « ${subject} ».`, dependsOn: ['r-vuln'] },
+        { id: 'runbook', role: 'redacteur', title: 'Runbook Aegis', brief: `Checklist R0 de durcissement pour : « ${subject} ». Recommandations, aucune commande d’attaque.`, dependsOn: ['analyse'], approval: permissionFor(mission), via },
+      ],
+    }
+  }
+  if (/scan|en-t[eê]te|header|surface/i.test(subject)) {
+    return {
+      summary: 'Radar scanne la surface publique de ztchosting.com — lecture seule.',
+      steps: [
+        { id: 'r-scan', role: 'chercheur', title: 'Scan Radar', target: 'ZTC Hosting', brief: `Scan public : statut HTTP, serveur annoncé, en-têtes TLS de ztchosting.com pour : « ${subject} ».`, dependsOn: [], queries: ['ztchosting.com', 'ztchosting.com/login'] },
+        { id: 'analyse', role: 'analyste', title: 'Lecture de surface', brief: `Synthèse du scan Radar. Pas d’invention. Mission : « ${subject} ».`, dependsOn: ['r-scan'] },
+        { id: 'runbook', role: 'redacteur', title: 'Runbook Radar', brief: `Compte-rendu R0 pour : « ${subject} ». Preuves, écarts, suite humaine.`, dependsOn: ['analyse'], approval: permissionFor(mission), via },
+      ],
+    }
+  }
+  if (/vid[eé]o|clip|promo video|film|motion|reel/i.test(subject)) {
+    return {
+      summary: 'Clip produit une vidéo promo à partir des SKU live — aucun SLA inventé.',
+      steps: [
+        { id: 'r-boutique', role: 'chercheur', title: 'SKU live', target: 'ZTC Hosting', brief: `Relève le catalogue FOSSBilling live pour : « ${subject} ». Prix et coming soon uniquement tels qu’observés.`, dependsOn: [], queries: ['ztchosting.com/order hosting', 'ZTC Hosting Business price'] },
+        { id: 'story', role: 'redacteur', title: 'Storyboard Muse', brief: `Storyboard et accroches pour la vidéo. Prix = catalogue live. Mission : « ${subject} ».`, dependsOn: ['r-boutique'] },
+        { id: 'film', role: 'designer', title: 'Vidéo Clip', brief: `Produis le clip / vidéo promo haute qualité. Affiche exactement le prix observé. Mission : « ${subject} ».`, dependsOn: ['story'], approval: permissionFor(mission), via },
+      ],
+    }
+  }
+  if (/funnel|flux (?:de )?visiteurs?|prospects?|rapport (?:visite|trafic|funnel)|conversion (?:site|visite)/i.test(subject)) {
+    return {
+      summary: 'Funnel analyse le flux visiteurs ztchosting.com, qualifie les prospects et produit un rapport — faits observés seulement.',
+      steps: [
+        { id: 'r-hits', role: 'chercheur', title: 'Collecte flux', target: 'ZTC Hosting', brief: `Relève les hits / sessions / pages (accueil, /order, /login) pour : « ${subject} ». Aucun volume inventé.`, dependsOn: [], queries: ['ztchosting.com analytics', 'ztchosting.com/order'] },
+        { id: 'qualify', role: 'analyste', title: 'Prospects Funnel', brief: `Qualifie les sessions chaudes en prospects (score, intérêt, pages). Mission : « ${subject} ».`, dependsOn: ['r-hits'] },
+        { id: 'report', role: 'redacteur', title: 'Rapport détaillé', brief: `Rédige le rapport Funnel (sessions, top pages, sources, prospects, taux). Faits observés uniquement. Mission : « ${subject} ».`, dependsOn: ['qualify'], approval: permissionFor(mission), via },
+      ],
+    }
+  }
+  if (/trafic|traffic|acquisition|seo|landing|croissance trafic/i.test(subject)) {
+    return {
+      summary: 'Boost planifie l’augmentation de trafic vers ztchosting.com / /order — mesure avant promesse.',
+      steps: [
+        { id: 'r-boutique', role: 'chercheur', title: 'Parcours & catalogue', target: 'ZTC Hosting', brief: `Cartographie accueil → /order et SKU live pour : « ${subject} ».`, dependsOn: [], queries: ['ztchosting.com', 'ztchosting.com/order'] },
+        { id: 'plan', role: 'analyste', title: 'Plan trafic Boost', brief: `Plan SEO / landing / campagnes. Pas de volume inventé. Mission : « ${subject} ».`, dependsOn: ['r-boutique'] },
+        { id: 'copy', role: 'redacteur', title: 'Copy Muse', brief: `Accroches et briefs landing pour le plan trafic. Prix live uniquement. Mission : « ${subject} ».`, dependsOn: ['plan'], approval: permissionFor(mission), via },
+      ],
+    }
+  }
+  if (/pub|visuel|campagne|image|flux|publicit|banni[eè]re|copy|accroche/i.test(subject)) {
+    return {
+      summary: 'Marketing ZTC : Muse (copy) + Flare (images) à partir des SKU live — aucun prix inventé.',
+      steps: [
+        { id: 'r-boutique', role: 'chercheur', title: 'SKU live', target: 'ZTC Hosting', brief: `Relève le catalogue FOSSBilling live pour : « ${subject} ». Prix et coming soon uniquement tels qu’observés.`, dependsOn: [], queries: ['ztchosting.com/order hosting', 'ZTC Hosting Business price'] },
+        { id: 'copy', role: 'redacteur', title: 'Copy Muse', brief: `Accroches et légendes campagne. Prix = catalogue live. Pas de SLA inventé. Mission : « ${subject} ».`, dependsOn: ['r-boutique'] },
+        { id: 'crea', role: 'designer', title: 'Visuel Flare', brief: `Crée le visuel / image marketing haute qualité pour le SKU live. Affiche exactement le prix observé. Mission : « ${subject} ».`, dependsOn: ['copy'], approval: permissionFor(mission), via },
+      ],
+    }
+  }
+  return {
+    summary: 'Équipe ZTC : preuve publique, diagnostic borné, runbook — aucune écriture sans accord.',
+    steps: [
+      {
+        id: 'r-boutique',
+        role: 'chercheur',
+        title: 'Preuve boutique ZTC',
+        target: 'ZTC Hosting',
+        brief: `Lis ztchosting.com et ztchosting.com/order pour : « ${subject} ». Relevés : plans, prix affichés, VPS coming soon, SKU IA. Chaque chiffre avec URL. Qualifie observé / à confirmer.`,
+        dependsOn: [],
+        queries: ['ZTC Hosting plans pricing site:ztchosting.com', 'ztchosting.com/order hosting'],
+      },
+      {
+        id: 'analyse',
+        role: 'analyste',
+        title: 'Diagnostic borné',
+        brief: `À partir des preuves : qui (Nova/Devoid/Funnel/Vega/Lyra/Echo/Ledger/Helix/Radar/Aegis/Swift/Flare/Clip/Boost/Muse) prend le dossier, anneau R0–R4, systèmes (FOSSBilling, WHM, Cloudflare). N’invente aucun état live. Mission : « ${subject} ».`,
+        dependsOn: ['r-boutique'],
+      },
+      {
+        id: 'runbook',
+        role: 'redacteur',
+        title: 'Runbook support',
+        brief: `Rédige le runbook R0/R1 pour : « ${subject} ». Étapes, preuves demandées, ce qui reste bloqué sans API métier. Aucun envoi client.`,
+        dependsOn: ['analyse'],
+        approval: permissionFor(mission),
+        via,
+      },
+    ],
   }
 }
 

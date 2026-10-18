@@ -45,7 +45,7 @@ function hashSeed(seed: string): number {
 }
 
 export function isFemaleName(firstName: string): boolean {
-  return /^(marie|sarah|sara|l[eé]a|camille|in[eè]s|ines|emma|julie|alice|chlo[eé]|anna|nina|louise|claire|sophie|nova|lisa|laura|lucie|manon|pauline|elodie|[eé]lodie|am[eé]lie|amelie|claire|jade|lina|maya|nora|olivia|zoe|zo[eé]|eva|clara|h[eé]l[eè]ne|helene|isabelle|nathalie|val[eé]rie|valerie|aur[eé]lie|aurelie|c[eé]line|celine|diane|florence|gabrielle|hannah|iris|julia|karine|lola|margaux|margot|m[eé]lanie|melanie|nathalie|oc[eé]ane|oceane|p[eé]n[eé]lope|penelope|rachel|sylvie|tiffany|victoria|wendy|yasmin|yasmine)/i.test(firstName.trim())
+  return /^(marie|sarah|sara|l[eé]a|camille|in[eè]s|ines|emma|julie|alice|chlo[eé]|anna|nina|louise|claire|sophie|nova|lisa|laura|lucie|manon|pauline|elodie|[eé]lodie|am[eé]lie|amelie|claire|jade|lina|maya|nora|olivia|zoe|zo[eé]|eva|clara|h[eé]l[eè]ne|helene|isabelle|nathalie|val[eé]rie|valerie|aur[eé]lie|aurelie|c[eé]line|celine|diane|florence|gabrielle|hannah|iris|julia|karine|lola|margaux|margot|m[eé]lanie|melanie|nathalie|oc[eé]ane|oceane|p[eé]n[eé]lope|penelope|rachel|sylvie|tiffany|victoria|wendy|yasmin|yasmine|flare)/i.test(firstName.trim())
 }
 
 /** Portrait photoréaliste déterministe (vrai visage, pas un blob SVG). */
@@ -85,19 +85,34 @@ export function businessModelOf(intention: string): BusinessModel {
 
 export function toolsFor(role: string, department: string): ConnectorProvider[] {
   const text = `${role} ${department}`.toLowerCase()
+  if (/analys|rédact|redact|chercheur/.test(text)) return ['evolus', 'notion', 'analytics']
   if (/market|cmo|croissance|communication|seo|contenu/.test(text)) return ['analytics', 'gmail', 'notion']
   if (/vente|sales|commercial|crm|immobilier/.test(text)) return ['crm', 'gmail', 'slack']
   if (/financ|cfo|compta|tr[eé]sor/.test(text)) return ['stripe', 'analytics']
   if (/tech|cto|d[eé]v|ing[eé]n|qa|logiciel/.test(text)) return ['github', 'linear', 'slack']
   if (/legal|jurid|contrat/.test(text)) return ['google_drive', 'notion']
-  if (/whm|cpanel|vega|h[eé]berg/.test(text)) return ['whm', 'ztc_core']
-  if (/domaine|dns|lyra|ssl/.test(text)) return ['resellerclub', 'cloudflare']
-  if (/mail|echo|d[eé]livrabilit/.test(text)) return ['whm', 'cloudflare']
-  if (/vps|helix|proxmox|openstack/.test(text)) return ['ztc_core', 'devoid']
-  if (/sre|orion|noc|s[eé]curit|cipher/.test(text)) return ['ztc_core', 'whm']
-  if (/ledger|fossbilling|factur/.test(text)) return ['fossbilling', 'stripe']
-  if (/forge|devops/.test(text)) return ['github', 'devoid']
-  if (/support|accueil|patient|succ[eè]s|nova/.test(text)) return ['gmail', 'ztc_core']
+  if (/whm|cpanel|vega|h[eé]berg/.test(text)) return ['whm', 'ztc_core', 'devoid', 'fossbilling']
+  if (/domaine|dns|lyra/.test(text)) return ['resellerclub', 'cloudflare', 'devoid', 'fossbilling']
+  if (/mail|echo|d[eé]livrabilit/.test(text)) return ['whm', 'cloudflare', 'devoid']
+  if (/vps|helix|proxmox|openstack/.test(text)) return ['ztc_core', 'devoid', 'fossbilling']
+  if (/radar|surface scan/.test(text)) return ['devoid', 'ztc_core']
+  if (/aegis|vuln/.test(text)) return ['devoid', 'cloudflare']
+  if (/swift|performance|ttfb|rapidit/.test(text)) return ['ztc_core', 'analytics', 'devoid']
+  if (/flare|ads visual|visuel|banni[eè]re/.test(text)) return ['fossbilling', 'analytics', 'devoid']
+  if (/clip|promo video|vid[eé]o|film|motion/.test(text)) return ['fossbilling', 'analytics', 'devoid']
+  if (/boost|traffic|acquisition|seo/.test(text)) return ['analytics', 'fossbilling', 'devoid']
+  if (/muse|copywriter|campagne|copy/.test(text)) return ['fossbilling', 'notion', 'devoid']
+  if (/funnel|visitor|prospect/.test(text)) return ['analytics', 'fossbilling', 'devoid', 'ztc_core']
+  if (/marketing/.test(text)) return ['fossbilling', 'analytics', 'devoid']
+  if (/devoid|customer ai/.test(text)) return ['devoid', 'fossbilling', 'ztc_core']
+  if (/cipher|security & soc/.test(text)) return ['cloudflare', 'whm', 'devoid']
+  if (/sre|orion|noc/.test(text)) return ['ztc_core', 'whm', 'devoid']
+  if (/s[eé]curit/.test(text)) return ['cloudflare', 'whm', 'devoid']
+  if (/ledger|fossbilling|factur/.test(text)) return ['fossbilling', 'stripe', 'devoid']
+  if (/forge|devops/.test(text)) return ['github', 'ztc_core', 'devoid']
+  if (/sage|grc|conformit/.test(text)) return ['notion', 'google_drive', 'devoid']
+  if (/pulse|growth & product/.test(text)) return ['fossbilling', 'analytics', 'devoid']
+  if (/support|accueil|patient|succ[eè]s|nova/.test(text)) return ['gmail', 'ztc_core', 'fossbilling', 'devoid']
   if (/produit|product/.test(text)) return ['linear', 'notion', 'analytics']
   if (/ops|op[eé]ration|logistique/.test(text)) return ['notion', 'slack']
   return ['notion', 'slack']
@@ -157,6 +172,66 @@ export function objectivesFor(role: string, department: string): Objective[] {
   if (/legal|jurid/.test(text)) {
     return [goal('Contrats relus', 'dossiers / mois', '12', month)]
   }
+  if (/radar|surface scan/.test(text)) {
+    return [
+      goal('Scans publics ztchosting.com', '/ semaine', '7', month),
+      goal('Écarts en-têtes signalés', 'issues', '0 bloquant', month),
+    ]
+  }
+  if (/aegis|vuln/.test(text)) {
+    return [
+      goal('Checklist durcissement', '% couverture', '100', month),
+      goal('PoC offensifs', 'count', '0', quarter),
+    ]
+  }
+  if (/swift|performance|ttfb/.test(text)) {
+    return [
+      goal('Mesures TTFB (accueil /order /login)', '/ jour', '3', month),
+      goal('Alertes dispo sans preuve', 'count', '0', month),
+    ]
+  }
+  if (/flare|ads visual|visuel/.test(text)) {
+    return [
+      goal('Images pub avec prix live FOSSBilling', '/ semaine', '5', month),
+      goal('Prix inventés', 'count', '0', quarter),
+    ]
+  }
+  if (/clip|promo video|vid[eé]o/.test(text)) {
+    return [
+      goal('Clips promo produit', '/ semaine', '2', month),
+      goal('SLA inventés dans une vidéo', 'count', '0', quarter),
+    ]
+  }
+  if (/boost|traffic|acquisition/.test(text)) {
+    return [
+      goal('Plans trafic vers /order', '/ semaine', '2', month),
+      goal('Volumes de trafic inventés', 'count', '0', quarter),
+    ]
+  }
+  if (/muse|copywriter|campagne/.test(text)) {
+    return [
+      goal('Accroches / briefs campagne live', '/ semaine', '6', month),
+      goal('Prix inventés dans le copy', 'count', '0', quarter),
+    ]
+  }
+  if (/nova|support|customer success/.test(text)) {
+    return [
+      goal('Tickets traités (preuve ZTC)', '/ jour', '12', month),
+      goal('Écritures WHM sans accord', 'count', '0', quarter),
+    ]
+  }
+  if (/vega|whm|hosting &/.test(text)) {
+    return [
+      goal('Contrôles quota / SSL R0', '/ jour', '8', month),
+      goal('Actions R2 prévisualisées', '%', '100', month),
+    ]
+  }
+  if (/ledger|billing|factur/.test(text)) {
+    return [
+      goal('Factures lues FOSSBilling', '/ jour', '20', month),
+      goal('Remboursements hors R3', 'count', '0', quarter),
+    ]
+  }
   if (/support|accueil|succ[eè]s/.test(text)) {
     return [goal('CSAT', '/5', '4.6', month)]
   }
@@ -171,6 +246,25 @@ export function objectivesFor(role: string, department: string): Objective[] {
 
 export function skillsFor(role: string, department: string): string[] {
   const text = `${role} ${department}`.toLowerCase()
+  if (/radar|surface scan/.test(text)) return ['Scan public', 'En-têtes TLS', 'Endpoints guest']
+  if (/aegis|vuln/.test(text)) return ['Durcissement', 'HSTS / CSP', 'Lecture seule']
+  if (/swift|performance|ttfb/.test(text)) return ['TTFB', 'Disponibilité', 'Mesure HTTP']
+  if (/flare|ads visual|visuel/.test(text)) return ['Images FLUX', 'SKU live', 'Bannières']
+  if (/clip|promo video|vid[eé]o/.test(text)) return ['Vidéo promo', 'Storyboard', 'Film']
+  if (/boost|traffic|acquisition/.test(text)) return ['Trafic', 'SEO', 'Landing /order']
+  if (/muse|copywriter|campagne/.test(text)) return ['Copy', 'Accroches', 'Briefs']
+  if (/nova|customer success|support &/.test(text)) return ['Tickets', 'Onboarding', 'DEVOID']
+  if (/devoid|customer ai/.test(text)) return ['Chat site', 'Boutique', 'Orchestration ATLAS']
+  if (/orion|sre/.test(text)) return ['Incidents', 'Latence', 'Backups']
+  if (/vega|whm|hosting &/.test(text)) return ['WHM', 'Quotas', 'AutoSSL']
+  if (/lyra|domains|dns/.test(text)) return ['Registrar', 'DNS', 'Renouvellements']
+  if (/echo|mail|d[eé]livrabilit/.test(text)) return ['MX', 'SPF/DKIM', 'Boîtes']
+  if (/helix|vps|llm/.test(text)) return ['VPS', 'SKU LLM', 'Coming soon']
+  if (/cipher|security & soc|soc/.test(text)) return ['SOC', 'Cloudflare', 'Runbooks']
+  if (/ledger|billing|factur/.test(text)) return ['FOSSBilling', 'Factures', 'Rapprochement']
+  if (/forge|devops/.test(text)) return ['n8n', 'OpenClaw', 'CI / rollback']
+  if (/pulse|growth & product/.test(text)) return ['Parcours boutique', 'SKU IA', 'Analytics']
+  if (/sage|grc|conformit/.test(text)) return ['RGPD', 'Preuves', 'ToS']
   if (/market|cmo|croissance|contenu/.test(text)) return ['Acquisition', 'Contenu', 'Analytics']
   if (/vente|sales|commercial/.test(text)) return ['Prospection', 'Négociation', 'CRM']
   if (/financ|cfo/.test(text)) return ['Budget', 'Reporting', 'Trésorerie']

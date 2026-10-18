@@ -98,11 +98,15 @@
   width: 30px;
   height: 30px;
   place-items: center;
+  overflow: hidden;
   border-radius: 8px;
-  background: var(--accent);
-  color: #fff !important;
-  font-size: 15px !important;
-  font-weight: 800;
+  background: #05060c;
+}
+
+.logo img {
+  width: 30px;
+  height: 30px;
+  object-fit: contain;
 }
 
 .pulse {
@@ -200,7 +204,8 @@ em.tone_neutral { background: #f1f5f9; color: #475569; }
   font-size: 11px;
 }
 
-.envSelect select {
+.envSelect select,
+.envSelect strong {
   padding: 5px 8px;
   border: 1px solid #e5e7eb;
   border-radius: 8px;
@@ -208,6 +213,7 @@ em.tone_neutral { background: #f1f5f9; color: #475569; }
   color: #0f172a;
   font: inherit;
   font-size: 12px;
+  font-weight: 600;
 }
 
 .flow {
@@ -574,6 +580,43 @@ em.tone_neutral { background: #f1f5f9; color: #475569; }
   background: linear-gradient(180deg, color-mix(in srgb, var(--accent) 6%, white), #fff 60%);
 }
 
+.stack {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  pointer-events: none;
+}
+
+.stack span {
+  padding: 5px 9px;
+  border: 1px solid #e5e7eb;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.95);
+  box-shadow: 0 6px 20px rgba(15, 23, 42, 0.08);
+  color: #475569;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.stack span[data-state='live'] {
+  border-color: #86efac;
+  background: #f0fdf4;
+  color: #166534;
+}
+
+.stack span[data-state='off'] {
+  border-color: #fcd34d;
+  background: #fffbeb;
+  color: #92400e;
+}
+
+.stack span[data-state='wait'] {
+  border-color: #e5e7eb;
+  color: #64748b;
+}
+
 .ztc {
   margin-top: 10px;
   padding-top: 8px;
@@ -602,6 +645,141 @@ em.tone_neutral { background: #f1f5f9; color: #475569; }
   margin-top: 3px;
 }
 
+.ztc p {
+  margin: 6px 0 0;
+}
+
+.ztcDevoid {
+  display: grid;
+  gap: 1px;
+  margin: 8px 0;
+  padding: 8px;
+  border-radius: 8px;
+  background: #0b1220;
+  color: #e2e8f0;
+}
+
+.ztcDevoid[data-ok='no'] {
+  background: #3f1d1d;
+}
+
+.ztcDevoid strong {
+  font-size: 12px;
+  letter-spacing: 0.04em;
+}
+
+.ztcDevoid span,
+.ztcDevoid small {
+  color: #94a3b8;
+  font-size: 10px;
+  text-transform: none;
+  letter-spacing: 0;
+  font-weight: 400;
+}
+
+.ztcSku {
+  max-height: 160px;
+  overflow: auto;
+}
+
+.ztcSku li {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.ztcSku li[data-soon='yes'] em {
+  color: #b45309;
+}
+
+.ztcOps {
+  max-height: 120px;
+  overflow: auto;
+}
+
+.ztcOps li {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.ztcOps li[data-ok='no'] em {
+  color: #b45309;
+}
+
+.ztcDesks {
+  font-size: 10px;
+  line-height: 1.45;
+  color: #475569;
+}
+
+.ztcLlm[data-ok='yes'] {
+  color: #0369a1;
+}
+
+.ztcAsk {
+  display: grid;
+  gap: 6px;
+  margin: 8px 0;
+}
+
+.ztcAsk label {
+  display: grid;
+  gap: 2px;
+  font-size: 10px;
+  color: #475569;
+}
+
+.ztcAsk select,
+.ztcAsk input {
+  width: 100%;
+  padding: 6px 8px;
+  border: 1px solid #d6dee3;
+  border-radius: 6px;
+  font: inherit;
+}
+
+.ztcAsk button {
+  justify-self: start;
+  padding: 6px 10px;
+  border: 0;
+  border-radius: 6px;
+  background: #0f172a;
+  color: #fff;
+  font-weight: 600;
+}
+
+.ztcAsk button:disabled {
+  opacity: 0.45;
+}
+
+.ztcAnswer {
+  max-height: 140px;
+  overflow: auto;
+  white-space: pre-wrap;
+  font-size: 11px;
+  line-height: 1.4;
+}
+
+.ztcSite {
+  margin-top: 8px;
+}
+
+.ztcSite a {
+  color: #0369a1;
+  font-weight: 600;
+}
+
+.ztcSite iframe {
+  display: block;
+  width: 100%;
+  height: 140px;
+  margin-top: 6px;
+  border: 1px solid #e2e8eb;
+  border-radius: 8px;
+  background: #fff;
+}
+
 .atlasHead {
   display: flex;
   align-items: flex-start;
@@ -624,10 +802,15 @@ em.tone_neutral { background: #f1f5f9; color: #475569; }
   height: 28px;
   place-items: center;
   border-radius: 9px;
-  background: #0f172a;
-  color: #fff;
-  font-size: 13px;
-  font-weight: 900;
+  background: #0b1220;
+  overflow: hidden;
+}
+
+.atlasMark img {
+  display: block;
+  width: 20px;
+  height: 20px;
+  object-fit: contain;
 }
 
 .actions {

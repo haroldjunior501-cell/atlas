@@ -11,7 +11,7 @@ export interface SpaceOption {
 
 /** Espaces qu’ATLAS sait ajouter au Bureau 3D, du plus précis au plus générique. */
 export const SPACE_CATALOG: SpaceOption[] = [
-  { kind: 'creative_studio', label: 'Studio créa', test: /studio cr[ée]a|espace cr[ée]atif|open.?space cr[ée]atif/, for: ['marketing_agency'] },
+  { kind: 'creative_studio', label: 'Studio créa', test: /studio cr[ée]a|espace cr[ée]atif|open.?space cr[ée]atif|studio marketing/, for: ['marketing_agency', 'hosting'] },
   { kind: 'photo_studio', label: 'Studio photo', test: /studio(?: photo| vid[ée]o)?\b|shooting|plateau (?:photo|tournage)/, for: ['marketing_agency', 'retail'] },
   { kind: 'pitch_room', label: 'Salle de pitch', test: /pitch/, for: ['marketing_agency'] },
   { kind: 'kitchen_pro', label: 'Cuisine professionnelle', test: /cuisine pro|grande cuisine|cuisine du restaurant/, for: ['restaurant'] },

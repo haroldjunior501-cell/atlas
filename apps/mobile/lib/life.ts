@@ -1,6 +1,6 @@
 import { Platform } from 'react-native'
 import * as SecureStore from 'expo-secure-store'
-import * as Notifications from 'expo-notifications'
+import Constants from 'expo-constants'
 
 const KEY = 'atlas-life-tasks'
 
@@ -13,6 +13,20 @@ export type LifeTask = {
 }
 
 const memory = new Map<string, string>()
+
+/** Expo Go (SDK 53+) n’embarque plus les push Android — on évite le crash au chargement. */
+function isExpoGo() {
+  return Constants.appOwnership === 'expo'
+}
+
+async function notifications() {
+  if (Platform.OS === 'web' || isExpoGo()) return null
+  try {
+    return await import('expo-notifications')
+  } catch {
+    return null
+  }
+}
 
 async function readRaw() {
   if (Platform.OS === 'web') return memory.get(KEY) ?? '[]'
@@ -81,7 +95,8 @@ export function newTask(title: string, due?: string): LifeTask {
 }
 
 export async function ensureNoticePermission() {
-  if (Platform.OS === 'web') return false
+  const Notifications = await notifications()
+  if (!Notifications) return false
   const current = await Notifications.getPermissionsAsync()
   const granted = current.granted || (await Notifications.requestPermissionsAsync()).granted
   if (granted) {
@@ -99,6 +114,8 @@ export async function ensureNoticePermission() {
 
 export async function remindAt(title: string, when: Date) {
   if (when.getTime() <= Date.now() + 4000) return
+  const Notifications = await notifications()
+  if (!Notifications) return
   const ok = await ensureNoticePermission()
   if (!ok) return
   await Notifications.scheduleNotificationAsync({
@@ -147,7 +164,7 @@ export async function absorbLifeOrder(text: string): Promise<{ tasks: LifeTask[]
     const tasks = await upsertTask(task)
     if (when) await remindAt(task.title, when)
     const spoken = when
-      ? `C’est noté. Je te rappelle « ${task.title} » ${when.toLocaleString('fr-FR', { weekday: 'short', hour: '2-digit', minute: '2-digit' })}.`
+      ? `Got it. I'll remind you about “${task.title}” ${when.toLocaleString('en-US', { weekday: 'short', hour: '2-digit', minute: '2-digit' })}.`
       : `Tâche ajoutée : ${task.title}.`
     return { tasks, spoken }
   }

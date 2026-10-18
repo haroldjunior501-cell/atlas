@@ -1,25 +1,12 @@
 import { existsSync } from 'node:fs'
 import { speechLang } from '@atlas/domain'
+import { amdHeaders, amdGemmaModel, amdGemmaUrl, amdVllmModel, amdVllmUrl, thinkOnAmd } from './amd-vllm'
 import { serverEnv } from './server-env'
+
+export { amdVllmModel, amdVllmUrl, thinkOnAmd } from './amd-vllm'
 
 export function llmBaseUrl() {
   return (serverEnv('AGENT_LLM_BASE_URL') || serverEnv('NVIDIA_LLM_URL')).replace(/\/$/, '')
-}
-
-/** vLLM OpenAI-compatible on AMD Developer Cloud (MI300X / MI355). Additive — NVIDIA stays unchanged. */
-export function amdVllmUrl() {
-  return serverEnv('AMD_VLLM_URL').replace(/\/$/, '')
-}
-
-export function amdVllmModel() {
-  return serverEnv('AMD_VLLM_MODEL') || 'nvidia/Nemotron-3-Super-120B-A12B'
-}
-
-function amdHeaders(): Record<string, string> {
-  const key = serverEnv('AMD_VLLM_API_KEY')
-  return key
-    ? { authorization: `Bearer ${key}`, 'content-type': 'application/json' }
-    : { 'content-type': 'application/json' }
 }
 
 export function llmModel() {
@@ -67,13 +54,7 @@ async function llmAlive(base: string) {
   return false
 }
 
-async function thinkOnAmd(system: string, user: string, tokens: number, timeoutMs: number) {
-  const base = amdVllmUrl()
-  if (!base) return ''
-  return chatCompletions(`${base}/chat/completions`, amdVllmModel(), system, user, tokens, timeoutMs, amdHeaders())
-}
-
-export async function thinkWithLlm(system: string, user: string, tokens = 260, timeoutMs = 12000): Promise<string> {
+export async function thinkWithLlm(system: string, user: string, tokens = 640, timeoutMs = 28000): Promise<string> {
   const amd = await thinkOnAmd(system, user, tokens, timeoutMs)
   if (amd) return amd
   const local = llmBaseUrl()
@@ -126,6 +107,9 @@ export async function* thinkWithLlmStream(
   const headers = nvidiaHeaders()
   const targets: Array<{ url: string; model: string; headers: Record<string, string> }> = []
   if (amdVllmUrl()) targets.push({ url: `${amdVllmUrl()}/chat/completions`, model: amdVllmModel(), headers: amdHeaders() })
+  if (amdGemmaUrl() && amdGemmaModel() !== amdVllmModel()) {
+    targets.push({ url: `${amdGemmaUrl()}/chat/completions`, model: amdGemmaModel(), headers: amdHeaders() })
+  }
   const local = llmBaseUrl()
   if (local && await llmAlive(local)) {
     targets.push({ url: `${local}/chat/completions`, model: llmModel(), headers })
@@ -215,49 +199,121 @@ async function chatCompletions(
   }
 }
 
-export async function transcribeAudio(audio: string): Promise<string> {
+function asrMime(nameOrFormat: string) {
+  const lower = nameOrFormat.toLowerCase()
+  if (lower.includes('wav')) return 'audio/wav'
+  if (lower.includes('mp3')) return 'audio/mpeg'
+  if (lower.includes('webm')) return 'audio/webm'
+  if (lower.includes('flac')) return 'audio/flac'
+  if (lower.includes('ogg')) return 'audio/ogg'
+  return 'audio/mp4'
+}
+
+function asrExt(nameOrFormat: string) {
+  const lower = nameOrFormat.toLowerCase()
+  if (lower.endsWith('.wav') || lower === 'wav') return 'wav'
+  if (lower.endsWith('.mp3') || lower === 'mp3') return 'mp3'
+  if (lower.endsWith('.webm') || lower === 'webm') return 'webm'
+  if (lower.endsWith('.flac') || lower === 'flac') return 'flac'
+  if (lower.endsWith('.ogg') || lower === 'ogg') return 'ogg'
+  return 'm4a'
+}
+
+function cleanAsr(raw: string) {
+  let text = raw.replace(/\s+/g, ' ').trim()
+  text = text.replace(/^["'«»]+|["'«»]+$/g, '').trim()
+  if (!text || /^(vide|empty)$/i.test(text)) return ''
+  return text.slice(0, 500)
+}
+
+/** ASR principal : Whisper (EN default) via multipart — accepts phone .m4a. */
+export async function transcribeAudioFile(buffer: Buffer, filename = 'speech.m4a', language = 'en'): Promise<string> {
+  const key = serverEnv('NVIDIA_API_KEY')
+  if (!key || buffer.byteLength < 200) return ''
+
   const riva = serverEnv('RIVA_ASR_URL') || serverEnv('ASR_SERVER_URL')
   if (riva.startsWith('http')) {
     try {
+      const form = new FormData()
+      form.set('file', new Blob([new Uint8Array(buffer)], { type: asrMime(filename) }), filename)
+      form.set('model', serverEnv('ASR_MODEL_NAME') || 'openai/whisper-large-v3')
+      form.set('language', (language || 'en').slice(0, 2).toLowerCase())
       const response = await fetch(`${riva.replace(/\/$/, '')}/v1/audio/transcriptions`, {
         method: 'POST',
-        signal: AbortSignal.timeout(12000),
-        headers: nvidiaHeaders(),
-        body: JSON.stringify({ model: serverEnv('ASR_MODEL_NAME') || 'nvidia/parakeet', language: 'fr-FR', file: audio }),
+        signal: AbortSignal.timeout(18000),
+        headers: { authorization: `Bearer ${key}` },
+        body: form,
       })
       if (response.ok) {
         const payload = await response.json() as { text?: string; transcript?: string }
-        const text = (payload.text || payload.transcript || '').trim()
-        if (text) return text.slice(0, 400)
+        const text = cleanAsr(payload.text || payload.transcript || '')
+        if (text) return text
       }
-    } catch { /* le canal NVIDIA cloud prend le relais */ }
+    } catch { /* NVIDIA cloud */ }
   }
-  const key = serverEnv('NVIDIA_API_KEY')
-  if (!key || audio.length < 100) return ''
+
+  const lang = (language || 'en').slice(0, 2).toLowerCase()
+  const models = [
+    serverEnv('ASR_MODEL_NAME'),
+    'openai/whisper-large-v3',
+    'openai/whisper-large-v3-turbo',
+  ].filter((item, index, all): item is string => Boolean(item) && all.indexOf(item) === index)
+
+  for (const model of models) {
+    try {
+      const form = new FormData()
+      form.set('file', new Blob([new Uint8Array(buffer)], { type: asrMime(filename) }), filename)
+      form.set('model', model)
+      form.set('language', lang)
+      form.set('response_format', 'json')
+      const response = await fetch('https://integrate.api.nvidia.com/v1/audio/transcriptions', {
+        method: 'POST',
+        signal: AbortSignal.timeout(22000),
+        headers: { authorization: `Bearer ${key}` },
+        body: form,
+      })
+      if (response.ok) {
+        const payload = await response.json() as { text?: string }
+        const text = cleanAsr(payload.text || '')
+        if (text) return text
+      }
+    } catch { /* modèle suivant */ }
+  }
+
+  // Dernier recours : modèle omni (format réel, plus de faux « wav »)
+  const format = asrExt(filename)
   try {
     const response = await fetch('https://integrate.api.nvidia.com/v1/chat/completions', {
       method: 'POST',
-      signal: AbortSignal.timeout(12000),
+      signal: AbortSignal.timeout(18000),
       headers: nvidiaHeaders(),
       body: JSON.stringify({
         model: 'nvidia/nemotron-3-nano-omni-30b-a3b-reasoning',
         temperature: 0,
-        max_tokens: 80,
+        max_tokens: 120,
         chat_template_kwargs: { enable_thinking: false },
         messages: [{
           role: 'user',
           content: [
-            { type: 'input_audio', input_audio: { data: audio, format: 'wav' } },
-            { type: 'text', text: 'Transcris uniquement les mots prononcés. Sans commentaire. Si tu n’entends aucune phrase, réponds exactement: vide' },
+            { type: 'input_audio', input_audio: { data: buffer.toString('base64'), format } },
+            { type: 'text', text: 'Transcribe only the spoken words. No commentary. If you hear no speech, reply exactly: empty' },
           ],
         }],
       }),
     })
     if (!response.ok) return ''
     const payload = await response.json() as { choices?: { message?: { content?: string } }[] }
-    const text = payload.choices?.[0]?.message?.content?.trim() ?? ''
-    if (!text || /^vide$/i.test(text)) return ''
-    return text.slice(0, 400)
+    return cleanAsr(payload.choices?.[0]?.message?.content || '')
+  } catch {
+    return ''
+  }
+}
+
+export async function transcribeAudio(audio: string, format = 'm4a'): Promise<string> {
+  if (!audio || audio.length < 100) return ''
+  try {
+    const buffer = Buffer.from(audio, 'base64')
+    return transcribeAudioFile(buffer, `speech.${asrExt(format)}`, 'fr')
   } catch {
     return ''
   }
@@ -266,9 +322,9 @@ export async function transcribeAudio(audio: string): Promise<string> {
 const MAGPIE_TTS_HOST = 'https://877104f7-e885-42b9-8de8-f6e4c6303969.invocation.api.nvcf.nvidia.com'
 
 const MAGPIE: Record<string, { language: string; voice: string }> = {
-  fr: { language: 'fr-FR', voice: 'Magpie-Multilingual.FR-FR.Pascal' },
-  en: { language: 'en-US', voice: 'Magpie-Multilingual.EN-US.Jason' },
-  es: { language: 'es-US', voice: 'Magpie-Multilingual.ES-US.Diego' },
+  fr: { language: 'fr-FR', voice: 'Magpie-Multilingual.FR-FR.Louise' },
+  en: { language: 'en-US', voice: 'Magpie-Multilingual.EN-US.Sofia' },
+  es: { language: 'es-US', voice: 'Magpie-Multilingual.ES-US.Isabela' },
   de: { language: 'de-DE', voice: 'Magpie-Multilingual.DE-DE.Pascal' },
   it: { language: 'it-IT', voice: 'Magpie-Multilingual.IT-IT.Pascal' },
   pt: { language: 'pt-BR', voice: 'Magpie-Multilingual.PT-BR.Diego' },
@@ -281,7 +337,7 @@ const MAGPIE: Record<string, { language: string; voice: string }> = {
 }
 
 function magpieChoice(text: string) {
-  return MAGPIE[speechLang(text).slice(0, 2).toLowerCase()] ?? null
+  return MAGPIE[speechLang(text).slice(0, 2).toLowerCase()] ?? MAGPIE.en
 }
 
 /** Voix neurale Magpie dans la langue de la phrase. */

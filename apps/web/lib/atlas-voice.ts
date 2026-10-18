@@ -15,8 +15,8 @@ export { speechLang }
 
 export function atlasGreeting(name: string): string {
   const who = name.trim()
-  if (!who || who === 'Vous') return 'Salut, que puis-je faire pour toi ?'
-  return `Salut ${who}, que puis-je faire pour toi ?`
+  if (!who || who === 'Vous' || who === 'You') return 'Hi, what can I do for you?'
+  return `Hi ${who}, what can I do for you?`
 }
 
 export type StudioView =
@@ -45,7 +45,7 @@ export type AtlasAction =
   | { kind: 'home' }
   | { kind: 'clear_org' }
   | { kind: 'answer'; text: string }
-  | { kind: 'template'; title: 'SaaS' | 'Agence' | 'E-commerce' | 'Freelance' }
+  | { kind: 'template'; title: 'ZTC Hosting' }
   | { kind: 'department'; name: string }
   | { kind: 'hire'; role: string; department?: string }
   | { kind: 'move'; name: string; department: string }
@@ -85,9 +85,12 @@ export type AtlasAction =
   | { kind: 'film'; prompt: string; title?: string }
   | { kind: 'orchestrate'; scope: 'all' | 'relance' | 'envoi' | 'reappro' }
   | { kind: 'space'; op: 'add' | 'remove'; target: string; name?: string }
+  | { kind: 'room'; target: string; mission?: string }
   | { kind: 'equip'; name: string; provider: string; on: boolean }
   | { kind: 'follow'; name: string }
   | { kind: 'crew'; mission: string }
+  /** Guided product / submission presentation (opens Studio sections + ZTC site). */
+  | { kind: 'pitch' }
 
 const VIEWS: Array<{ re: RegExp; view: StudioView }> = [
   { re: /bureau 3d|jumeau|vue 3d|\b3d\b/, view: 'bureau' },
@@ -318,6 +321,39 @@ function providerIn(heard: string) {
 function officeCommand(text: string, heard: string): AtlasAction | null {
   if (/\b3d\b|jumeau|organigramme/.test(heard)) return null
 
+  // Mission à toute une salle / département
+  const roomMission = text.match(
+    /(?:demande|dis|dit|envoie|confie|lance)\s+(?:[àa]\s+)?(?:toute\s+)?(?:la\s+|le\s+)?(?:salle|zone|[eé]quipe|d[eé]partement)\s+(.+?)\s+(?:de\s+|d['’]|pour\s+|:\s*)(.+)/iu,
+  )
+  if (roomMission?.[1] && roomMission[2] && clean(roomMission[2]).length >= 4) {
+    return { kind: 'room', target: clean(roomMission[1]), mission: clean(roomMission[2]) }
+  }
+
+  // Ouvre / pilote / focus une salle du Bureau 3D (pas les vues studio : factures, employés…)
+  const roomOpen = text.match(
+    /(?:ouvre|ouvrir|va dans|entre dans|montre|affiche|pilote|focus|regarde|zoom)\s+(?:moi\s+)?(?:sur\s+)?(?:la\s+|le\s+|l['’])?(?:salle|zone|d[eé]partement|pi[eè]ce|espace)?\s*(?:de\s+|du\s+|des\s+|d['’])?(.+)/iu,
+  )
+  if (roomOpen?.[1]) {
+    const target = clean(roomOpen[1])
+    if (/^(?:les?\s+)?(?:factures?|employ[eé]s?|missions?|workflows?|r[eé]unions?|approbations?|connaissances?|int[eé]grations?|templates?|tutoriels?|comptes?|organigrammes?)\b/i.test(target)) {
+      return null
+    }
+    if (
+      /s[eé]curit|support|accueil|perf|op[eé]ration|noc|h[eé]berg|serveur|domaine|dns|messag|mail|vps|cloud|compta|devops|produit|marketing|conformit|r[eé]union|personnel|soc|whm|studio/i.test(target)
+      || /^(?:salle|zone|d[eé]partement)\b/i.test(target)
+    ) {
+      return { kind: 'room', target }
+    }
+  }
+
+  // Qui travaille dans la salle X ?
+  const roomWho = text.match(
+    /(?:qui|quels? agents?|quelle [eé]quipe).{0,24}(?:dans|en|sur)\s+(?:la\s+|le\s+)?(?:salle|zone|d[eé]partement)?\s*(?:de\s+|du\s+|d['’])?(.+)/iu,
+  )
+  if (roomWho?.[1] && /s[eé]curit|support|accueil|perf|op[eé]ration|h[eé]berg|factur|produit|devops|domaine|messag|cloud|conformit|noc|soc/i.test(roomWho[1])) {
+    return { kind: 'room', target: clean(roomWho[1]) }
+  }
+
   const follow = text.match(new RegExp(`(?:o[uù] en est|que fait|qu.est-ce que fait|sur quoi travaille|suis le travail de|montre(?:-moi)? le travail de|flux de travail de)\\s+${PERSON}`, 'iu'))
   if (personOk(follow?.[1])) return { kind: 'follow', name: titled(follow[1]) }
 
@@ -356,7 +392,19 @@ function officeCommand(text: string, heard: string): AtlasAction | null {
 export function interpretAtlas(raw: string): AtlasAction {
   const text = clean(raw.replace(/\b(jarvis|atlas)\b/gi, ' '))
   const heard = text.toLowerCase()
-  if (!heard || /^(bonjour|salut|écoute|ecoute|oui|ok)$/.test(heard)) return { kind: 'listen' }
+  if (!heard || /^(bonjour|salut|écoute|ecoute|oui|ok|hi|hey)$/.test(heard)) return { kind: 'listen' }
+  // Guided submission / product pitch — start immediately
+  if (
+    /\bpitch\b/.test(heard)
+    || /(?:submission|hackathon)\s+(?:pitch|presentation|demo|video|tour)/.test(heard)
+    || /(?:start|run|begin|launch)\s+(?:the\s+)?(?:full\s+)?(?:product\s+|submission\s+|ztc\s+)?(?:presentation|demo|tour|pitch)/.test(heard)
+    || /present(?:\s+yourself)?(?:\s+and)?(?:\s+the)?\s+(?:organization|organisation|ztc|ztchosting)/.test(heard)
+    || /(?:introduce|show)\s+(?:yourself|atlas).{0,60}(?:ztc|ztchosting|organization|organisation)/.test(heard)
+    || /walk\s*(?:me\s+)?through\s+(?:ztc|ztchosting|the\s+(?:organization|studio|product))/.test(heard)
+    || /pr[eé]sente(?:[- ]toi)?(?:\s+et)?(?:\s+l['’]organisation)?.{0,40}(?:ztc|ztchosting|soumission|d[eé]mo|vid[eé]o)/.test(heard)
+  ) {
+    return { kind: 'pitch' }
+  }
   // Mission d’équipe : ATLAS planifie, délègue à plusieurs agents en parallèle, relit
   const crewCue = /mission d['’ ]?[ée]quipe|(?:monte|mobilise|lance|envoie|r[ée]unis)\s+(?:une |l['’ ]?|toute l['’ ]?|mon |ton )?[ée]quipe\s*(?::|,|pour\s+\p{L}+(?:er|ir|re)\b)|avec toute l['’ ]?[ée]quipe|un agent par concurrent|analys\w*\s+(?:\d+|deux|trois|quatre|cinq|six|sept|huit)\s+concurrents/u
   if (crewCue.test(heard)) {
@@ -696,6 +744,15 @@ export function interpretAtlas(raw: string): AtlasAction {
     const folder = /bureau/.test(heard) ? 'desktop' : /t[eé]l[eé]charg/.test(heard) ? 'downloads' : 'documents'
     return { kind: 'invoke', provider: 'filesystem', tool: 'open_folder', input: JSON.stringify({ folder }) }
   }
+  if (/(?:ouvre|ouvrir|lance|affiche|open|launch|show|display).{0,40}(?:site|ztchosting|boutique|store|shop|client area|espace client)/.test(heard)
+    || /ztchosting\.com/.test(heard)) {
+    const url = /boutique|\/order|store|shop/.test(heard)
+      ? 'https://ztchosting.com/order'
+      : /espace client|\/login|client area/.test(heard)
+        ? 'https://ztchosting.com/login'
+        : 'https://ztchosting.com/'
+    return { kind: 'invoke', provider: 'browser', tool: 'open_url', input: JSON.stringify({ url }) }
+  }
   if (/remplis.{0,32}formulaire|pilote le navigateur|extrait.{0,24}(?:du |le )?site|computer use/.test(heard)) {
     return { kind: 'invoke', provider: 'browser', tool: 'open_app', input: 'chrome' }
   }
@@ -723,17 +780,23 @@ export function interpretAtlas(raw: string): AtlasAction {
   if (/dossier|base de connaissance|m[eé]moire|que dit|qu.est-ce qu.on sait/.test(heard)) {
     return { kind: 'knowledge', question: text }
   }
-  if (/qu.est-ce qui se passe|pr[eé]pare ma journ|mes priorit|r[eé]sum[eé] de l.entreprise|que dois-je faire|point sur|briefing|fais-moi le point/.test(heard)) {
+  if (/qu.est-ce qui se passe|pr[eé]pare ma journ|mes priorit|r[eé]sum[eé] de l.entreprise|que dois-je faire|point sur|briefing|fais-moi le point|qui (?:travaille|est en (?:mission|activit))|supervis|situation (?:de )?(?:l['’])?(?:[eé]quipe|org|bureau|produit)/.test(heard)) {
     return { kind: 'brief' }
   }
-  if (/^(montre|liste|qui)\b/.test(heard) && /[eé]quipe|employ/.test(heard)) return { kind: 'team' }
+  // Superviseur : état des agents / bureau 3D (ne jamais laisser le LLM nier l’accès)
+  if (
+    /que (?:font|fait|fabriquent)\b.{0,40}(?:agents?|employ[eé]s)/.test(heard)
+    || /(?:statut|activit[eé]|pr[eé]sence|occupation)\b.{0,24}(?:agents?|employ[eé]s)/.test(heard)
+    || /(?:mes|les) agents?\b.{0,48}(?:bureau|font|fait|travaill|activit)/.test(heard)
+    || /(?:agents?|employ[eé]s).{0,24}dans (?:le |mon )?bureau/.test(heard)
+  ) {
+    return { kind: 'brief' }
+  }
+  if (/(?:montre|liste|qui)\b/.test(heard) && /[eé]quipe|employ|agents?|postes?|d[eé]partements?/.test(heard)) return { kind: 'team' }
+  if (/quels? (?:sont )?(?:les )?(?:agents?|employ[eé]s)|pr[eé]sente(?:-moi)? (?:l['’])?[eé]quipe|tous les agents/.test(heard)) return { kind: 'team' }
 
   if (/mod[eè]le|template/.test(heard)) {
-    if (/saas/.test(heard)) return { kind: 'template', title: 'SaaS' }
-    if (/agence/.test(heard)) return { kind: 'template', title: 'Agence' }
-    if (/e-?commerce|boutique/.test(heard)) return { kind: 'template', title: 'E-commerce' }
-    if (/freelance|solo/.test(heard)) return { kind: 'template', title: 'Freelance' }
-    return { kind: 'navigate', view: 'templates' }
+    return { kind: 'template', title: 'ZTC Hosting' }
   }
 
   if (/\b(ouvre|ouvrir|montre|montrer|affiche)\b/.test(heard)) {
@@ -930,9 +993,10 @@ const KINDS = new Set<AtlasAction['kind']>([
   'search', 'videos', 'mail', 'post', 'install', 'connect', 'invoke', 'knowledge', 'autonomy', 'collaborate', 'ask',
   'remember', 'forget', 'recall', 'correct_memory', 'research', 'teach', 'draft', 'code',
   'extract', 'transform', 'image', 'film',
+  'orchestrate', 'space', 'room', 'equip', 'follow', 'crew', 'plan', 'pitch',
 ])
 
-const TEMPLATE_TITLES = new Set(['SaaS', 'Agence', 'E-commerce', 'Freelance'])
+const TEMPLATE_TITLES = new Set(['ZTC Hosting'])
 const STUDIO_VIEWS = new Set<StudioView>([
   'organigramme', 'bureau', 'factures', 'employes', 'missions', 'workflows', 'reunions', 'approbations',
   'connaissances', 'integrations', 'observabilite', 'templates', 'tutoriels', 'compte',
@@ -962,7 +1026,7 @@ export function directiveFromModel(raw: string): { reply: string; action: AtlasA
     return { reply, action: { kind, scope } }
   }
   if (kind === 'template' && typeof action.title === 'string' && TEMPLATE_TITLES.has(action.title)) {
-    return { reply, action: { kind, title: action.title as 'SaaS' | 'Agence' | 'E-commerce' | 'Freelance' } }
+    return { reply, action: { kind, title: 'ZTC Hosting' } }
   }
   if (kind === 'department' && typeof action.name === 'string') return { reply, action: { kind, name: action.name } }
   if (kind === 'hire' && typeof action.role === 'string') {
@@ -970,6 +1034,16 @@ export function directiveFromModel(raw: string): { reply: string; action: AtlasA
   }
   if (kind === 'space' && (action.op === 'add' || action.op === 'remove') && typeof action.target === 'string') {
     return { reply, action: { kind, op: action.op, target: action.target, name: typeof action.name === 'string' ? action.name : undefined } }
+  }
+  if (kind === 'room' && typeof action.target === 'string' && action.target.trim()) {
+    return {
+      reply,
+      action: {
+        kind: 'room',
+        target: action.target.trim(),
+        mission: typeof action.mission === 'string' && action.mission.trim().length >= 4 ? action.mission.trim() : undefined,
+      },
+    }
   }
   if (kind === 'equip' && typeof action.name === 'string' && typeof action.provider === 'string') {
     return { reply, action: { kind, name: action.name, provider: action.provider, on: action.on !== false } }
@@ -1104,7 +1178,7 @@ export function directiveFromModel(raw: string): { reply: string; action: AtlasA
     const withNames = action.with.filter((item): item is string => typeof item === 'string')
     if (withNames.length >= 2) return { reply, action: { kind, with: withNames.slice(0, 2) } }
   }
-  if (kind === 'listen' || kind === 'approve' || kind === 'reject' || kind === 'home' || kind === 'clear_org' || kind === 'brief' || kind === 'team' || kind === 'tasks' || kind === 'tools' || kind === 'load' || kind === 'import') {
+  if (kind === 'listen' || kind === 'approve' || kind === 'reject' || kind === 'home' || kind === 'clear_org' || kind === 'brief' || kind === 'team' || kind === 'tasks' || kind === 'tools' || kind === 'load' || kind === 'import' || kind === 'pitch') {
     return { reply, action: { kind } }
   }
   if (kind === 'answer' && typeof action.text === 'string') return { reply, action: { kind, text: action.text } }

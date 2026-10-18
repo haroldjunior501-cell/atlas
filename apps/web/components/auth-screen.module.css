@@ -56,12 +56,13 @@
 
 .stage {
   position: relative;
-  z-index: 1;
+  z-index: 3;
   display: flex;
   flex-direction: column;
   align-items: center;
   width: min(480px, calc(100% - 32px));
   margin: 7vh auto 0;
+  pointer-events: auto;
 }
 
 .stage h1 {
@@ -106,6 +107,17 @@
   font-size: 15px;
 }
 
+/* Detect Chrome autofill so React can sync values (see AuthScreen). */
+@keyframes atlasAutofill {
+  from { opacity: 0.99; }
+  to { opacity: 1; }
+}
+
+.field input:-webkit-autofill {
+  animation-name: atlasAutofill;
+  animation-duration: 0.01s;
+}
+
 .field input:focus {
   outline: none;
   border-color: #fd8925;
@@ -130,8 +142,8 @@
 }
 
 .submit:disabled {
-  opacity: 1;
-  cursor: default;
+  opacity: 0.72;
+  cursor: wait;
 }
 
 .legal {

@@ -52,20 +52,13 @@ export type PlaceHub = {
 export const PLACE_HUBS: Record<Exclude<Place, 'home'>, PlaceHub> = {
   library: {
     title: 'Bibliothèque',
-    intro: 'Le stockage d’ATLAS : tout ce que tu importes ailleurs, et ce qu’Atlas génère.',
+    intro: 'Images, rapports, documents, factures et créations ATLAS / agents — tout y est rangé automatiquement.',
     rooms: [],
   },
   study: {
-    title: 'Études',
-    intro: 'Un espace pour apprendre, avec Atlas comme prof.',
-    rooms: [
-      { id: 'explain', title: 'Cours et explications', hint: 'Envoie ton cours, ATLAS te l’explique clairement.', color: '#3b82f6', tone: ['#1d4ed8', '#2563eb'], tags: ['Cours', 'Explications', 'Exemples'], mark: 'book', skill: 'lesson', seed: 'Tu es un professeur exigeant et clair. L’élève t’envoie son cours. Explique tout le raisonnement, avec exemples. Ne t’arrête pas au milieu. Pose une question pour vérifier. Tu peux ouvrir une autre section si on te le demande.', card: 'Explication' },
-      { id: 'exercises', title: 'Exercices et corrections', hint: 'Un énoncé, une correction pas à pas.', color: '#14b8a6', tone: ['#0f766e', '#14b8a6'], tags: ['Exercices', 'Méthodes', 'Corrections'], mark: 'page', skill: 'lesson', seed: 'Corrige l’exercice comme un professeur : méthode, étapes, calculs, réponse finale, puis erreurs fréquentes. Ne coupe pas la correction.', card: 'Correction' },
-      { id: 'summaries', title: 'Résumés automatiques', hint: 'L’essentiel d’un cours, en une fiche.', color: '#8b5cf6', tone: ['#6d28d9', '#7c3aed'], tags: ['Synthèse', 'Fiche', 'Points clés'], mark: 'page', skill: 'document', seed: 'Fais un résumé complet du cours : idées clés, définitions, formules, ce qu’il faut retenir. Structure claire, rien d’important oublié.', card: 'Résumé' },
-      { id: 'sheets', title: 'Fiches de révision', hint: 'Fiches courtes à relire avant un devoir.', color: '#f97316', tone: ['#c2410c', '#ea580c'], tags: ['Fiches', 'Notions', 'Révisions'], mark: 'sheet', skill: 'lesson', seed: 'Transforme le cours en fiche de révision complète : notions, formules, pièges, mini-exemples. Termine la fiche.', card: 'Fiche' },
-      { id: 'quiz', title: 'Quiz et évaluations', hint: 'Questions pour tester ce que tu sais.', color: '#f43f5e', tone: ['#be123c', '#e11d48'], tags: ['Quiz', 'QCM', 'Examens'], mark: 'quiz', skill: 'lesson', seed: 'Interroge l’élève. Une question claire, puis attends. Quand il répond, corrige en expliquant vraiment pourquoi.', card: 'Quiz' },
-      { id: 'goal', title: 'Un objectif d’étude', hint: 'Dis à ATLAS ce que tu veux apprendre et il te crée un plan personnalisé.', color: '#22d3ee', tone: ['#0e7490', '#0891b2'], tags: ['Objectif', 'Plan', 'Progression'], mark: 'target', skill: 'plan', seed: 'L’élève te dit un objectif d’étude. Crée un plan personnalisé : étapes, durée, méthode, premières actions. Complet, pas un slogan.', card: 'Plan' },
-    ],
+    title: 'Organisation',
+    intro: 'ZtcHosting et ses employés IA : entre, discute, délègue, demande un rapport.',
+    rooms: [],
   },
   projects: {
     title: 'Projets',
@@ -108,7 +101,7 @@ export const PLACE_HUBS: Record<Exclude<Place, 'home'>, PlaceHub> = {
     intro: 'Compte, voix, appareil — Atlas t’aide à régler.',
     rooms: [
       { id: 'account', title: 'Compte', hint: 'Nom, organisation, session.', color: '#3b82f6', tone: ['#1d4ed8', '#2563eb'], tags: ['Compte', 'Session', 'Org'], mark: 'gear', skill: 'document', seed: 'Aide sur le compte ATLAS. Le visage, la voix et les fichiers restent sur l’appareil.' },
-      { id: 'voice', title: 'Voix et visage', hint: 'Pascal, lip-sync, légendes.', color: '#8b5cf6', tone: ['#6d28d9', '#7c3aed'], tags: ['Pascal', 'Visage', 'Légendes'], mark: 'plugin', skill: 'voice', seed: 'Explique ou ajuste la voix Pascal, le visage et les légendes qui suivent la parole.' },
+      { id: 'voice', title: 'Voix et visage', hint: 'Louise, lip-sync, légendes.', color: '#8b5cf6', tone: ['#6d28d9', '#7c3aed'], tags: ['Louise', 'Visage', 'Légendes'], mark: 'plugin', skill: 'voice', seed: 'Explique ou ajuste la voix Louise, le visage et les légendes qui suivent la parole.' },
       { id: 'privacy', title: 'Confidentialité', hint: 'Ce qui reste sur l’iPad.', color: '#14b8a6', tone: ['#0f766e', '#14b8a6'], tags: ['Local', 'Studio', 'Cloud'], mark: 'help', skill: 'document', seed: 'Explique clairement ce qui reste local et ce qui passe par le Studio ou le cloud.' },
     ],
   },
@@ -116,7 +109,7 @@ export const PLACE_HUBS: Record<Exclude<Place, 'home'>, PlaceHub> = {
     title: 'Aide',
     intro: 'Comment Atlas pilote toute l’application.',
     rooms: [
-      { id: 'guide', title: 'Guide', hint: 'Les sections et ce qu’elles font.', color: '#3b82f6', tone: ['#1d4ed8', '#2563eb'], tags: ['Guide', 'Sections', 'Atlas'], mark: 'help', skill: 'document', seed: 'Explique l’app ATLAS : accueil, bibliothèque (images, vidéos, docs, images générées), études, projets, plugins, agenda, fichiers. Atlas lit les documents et explique les vidéos. Atlas peut ouvrir n’importe quelle section si on le demande.' },
+      { id: 'guide', title: 'Guide', hint: 'Les sections et ce qu’elles font.', color: '#3b82f6', tone: ['#1d4ed8', '#2563eb'], tags: ['Guide', 'Sections', 'Atlas'], mark: 'help', skill: 'document', seed: 'Explique l’app ATLAS mobile : accueil (parler à ATLAS), Organisation (équipe, déléguer, briefing, flux ZTC), bibliothèque, projets, plugins, agenda, fichiers. Le dirigeant coordonne ZtcHosting en mobilité.' },
       { id: 'ask', title: 'Demander à Atlas', hint: 'Une question sur l’app.', color: '#8b5cf6', tone: ['#6d28d9', '#7c3aed'], tags: ['Question', 'Aide', 'Navigation'], mark: 'quiz', skill: 'document', seed: 'Réponds à la question sur ATLAS. Si l’utilisateur veut une section, oriente-le.' },
     ],
   },
@@ -137,11 +130,30 @@ export function chatKey(place: Place, roomId: string) {
 }
 
 /** Ouvre une section seulement si l’utilisateur le demande clairement. */
+/**
+ * Ordres destinés au Studio web / PC / site ZtcHosting —
+ * ne doivent PAS basculer vers une section mobile (ex. Organisation).
+ */
+export function isStudioOrPcOrder(text: string) {
+  const heard = text.toLowerCase().normalize('NFD').replace(/\p{M}/gu, '')
+  if (/(bureau\s*3d|jumeau|plein\s*ecran|fullscreen|organigramme|studio\s*(web|atlas)?)/.test(heard)) return true
+  if (/(ouvre|affiche|montre|va |passe ).{0,28}(factur|mission|employ|integration|observ|reunion|approbation|connaissance|template|tutoriel|compte)\b/.test(heard)) return true
+  if (/(ouvre|lance|affiche|montre).{0,40}(site|ztchosting|boutique|espace client|navigateur)/.test(heard)) return true
+  if (/sur (le |l')?(pc|ordinateur)|dans (le )?navigateur|chrome|edge/.test(heard)) return true
+  return false
+}
+
 export function routeFromOrder(text: string): { place: Place; room?: string } | null {
+  if (isStudioOrPcOrder(text)) return null
   const heard = text.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+  // « présente / explique mon organisation » = conversation Atlas, pas navigation
+  if (/(presente|presenter|parle[- ]moi|explique|decrit|resume|c'?est quoi).{0,40}(organisation|equipe|ztc|ztchosting)/.test(heard)
+    || /(organisation|ztchosting|equipe).{0,20}(c'?est quoi|qui (?:est|sont))/.test(heard)) {
+    return null
+  }
   const go = /ouvr|va dans|vas dans|aller dans|emmene|ramene|montre[- ]moi|lance |section|espace /.test(heard)
   const named =
-    /(bibliotheque|etudes?|cours|exercices?|resume|fiches?|quiz|projets?|plugins?|agenda|fichiers?|parametres?|aide|accueil)/.test(
+    /(bibliotheque|organisation|bureau|equipe|delegu|brief|ztc|produit|etudes?|projets?|plugins?|agenda|fichiers?|parametres?|aide|accueil)/.test(
       heard,
     )
   if (!go && !/^ouvre\b/.test(heard)) {
@@ -163,7 +175,7 @@ export function routeFromOrder(text: string): { place: Place; room?: string } | 
     if (/strategie|plan d.action/.test(heard)) return { place: 'projects', room: 'strategy' }
     return { place: 'projects' }
   }
-  if (/agenda|taches?|rappel/.test(heard) && !/etude/.test(heard)) {
+  if (/agenda|taches?|rappel/.test(heard) && !/organisation|delegu|mission/.test(heard)) {
     if (/rappel/.test(heard)) return { place: 'agenda', room: 'remind' }
     if (/tache/.test(heard)) return { place: 'agenda', room: 'tasks' }
     if (/semaine/.test(heard)) return { place: 'agenda', room: 'week' }
@@ -172,12 +184,11 @@ export function routeFromOrder(text: string): { place: Place; room?: string } | 
   if (/fichiers?/.test(heard) && !/bibliotheque/.test(heard)) return { place: 'files' }
   if (/parametre/.test(heard)) return { place: 'settings' }
   if (/\baide\b/.test(heard)) return { place: 'help' }
-  if (/etude|cours|exercice|fiche de revision|quiz|qcm/.test(heard)) {
-    if (/exercice/.test(heard)) return { place: 'study', room: 'exercises' }
-    if (/resume/.test(heard)) return { place: 'study', room: 'summaries' }
-    if (/fiche/.test(heard)) return { place: 'study', room: 'sheets' }
-    if (/quiz|qcm|evaluation/.test(heard)) return { place: 'study', room: 'quiz' }
-    if (/cours|expli/.test(heard)) return { place: 'study', room: 'explain' }
+  if (/organisation|equipe|delegu|briefing|flux produit|mission d['’]equipe|parle a (?:un )?agent/.test(heard)
+    && !/site|navigateur|boutique|studio|3d|plein|presente|explique|decrit|resume/.test(heard)) {
+    return { place: 'study' }
+  }
+  if (/\brapport\b/.test(heard) && /(?:agent|nova|swift|flare|ledger|demande|confie)/.test(heard)) {
     return { place: 'study' }
   }
   return null
@@ -195,6 +206,6 @@ export function atlasFrame(place: Place, room: PlaceRoom | null, _userText: stri
     : 'Tu es Atlas, sur l’écran d’accueil.'
   const job = pluginLabel
     ? `Tu pilotes l’application ${pluginLabel} via le Studio. Si elle n’est pas reliée, dis-le clairement.`
-    : room?.seed || 'Réponds clairement. Tu peux ouvrir Études, Projets, Plugins, Agenda, Fichiers, Bibliothèque, Paramètres ou Aide si on te le demande.'
+    : room?.seed || 'Réponds clairement et exécute. Tu pilotes le Studio web (bureau 3D, plein écran, sections) et le PC (apps, navigateur). Pour ZtcHosting : « ouvre le site », « ouvre la boutique », « ouvre l’espace client ». Sections mobiles : Organisation, Projets, Plugins, Agenda, Fichiers, Bibliothèque.'
   return [who, where, job].filter(Boolean).join(' ')
 }

@@ -18,6 +18,7 @@ const SCRIPTS: Array<[RegExp, string]> = [
 ]
 
 const WORDS: Array<[string, string[]]> = [
+  ['en-US', ['the', 'what', 'how', 'why', 'please', 'hello', 'thanks', 'is', 'are', 'you', 'to', 'of', 'and', 'for']],
   ['vi-VN', ['không', 'của', 'những', 'một', 'tôi', 'bạn', 'chào', 'cảm']],
   ['pt-BR', ['não', 'você', 'obrigado', 'obrigada', 'olá', 'isso', 'está', 'muito']],
   ['es-ES', ['hola', 'gracias', 'qué', 'cómo', 'está', 'buenos', 'por', 'para', 'una']],
@@ -30,7 +31,6 @@ const WORDS: Array<[string, string[]]> = [
   ['ro-RO', ['și', 'nu', 'este', 'bună', 'mulțumesc']],
   ['id-ID', ['yang', 'dan', 'tidak', 'halo', 'terima']],
   ['fr-FR', ['le', 'la', 'les', 'des', 'une', 'je', 'vous', 'bonjour', 'est', 'pour', 'dans', 'salut', 'merci']],
-  ['en-US', ['the', 'what', 'how', 'why', 'please', 'hello', 'thanks', 'is', 'are', 'you', 'to', 'of']],
 ]
 
 function hits(sample: string, words: string[]) {
@@ -48,7 +48,7 @@ export function speechLang(text: string): string {
   for (const [pattern, code] of SCRIPTS) {
     if (pattern.test(sample)) return code
   }
-  let best = 'fr-FR'
+  let best = 'en-US'
   let bestScore = 0
   for (const [code, words] of WORDS) {
     const score = hits(sample, words)
@@ -57,5 +57,7 @@ export function speechLang(text: string): string {
       bestScore = score
     }
   }
+  // Prefer English when no clear signal (ATLAS primary language).
+  if (bestScore === 0) return 'en-US'
   return best
 }

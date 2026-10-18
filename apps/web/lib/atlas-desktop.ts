@@ -15,6 +15,7 @@ const execFileAsync = promisify(execFile)
 
 export const DESKTOP_TOOLS: McpTool[] = [
   { name: 'open_app', description: 'Ouvrir une app installée sur le PC (menu Démarrer, Word, Chrome, Spotify…)' },
+  { name: 'open_url', description: 'Ouvrir une URL https dans le navigateur par défaut du PC' },
   { name: 'control_app', description: 'Exécuter une action dans une app (jouer un son sur Spotify, chercher dans Notion, écrire dans Word…)' },
   { name: 'list_apps', description: 'Lister les applications installées détectées sur cet ordinateur' },
   { name: 'list_files', description: 'Lister les fichiers du Bureau ou Documents' },
@@ -388,8 +389,27 @@ export async function desktopInvoke(tool: string, args: Record<string, unknown> 
     }
     return runAppControl(request)
   }
+  if (name === 'open_url' || name === 'browse' || name === 'open_site' || name === 'ouvrir_url') {
+    const raw = String(args.url || args.href || args.link || args.text || args.query || '').trim()
+    const match = raw.match(/https?:\/\/[^\s"'<>]+/i)
+    const url = (match?.[0] || raw).replace(/[),.;]+$/g, '')
+    if (!/^https?:\/\//i.test(url)) {
+      throw new Error('URL https requise. Exemple : https://ztchosting.com/')
+    }
+    // Sites externes : https seulement (pas de file:// ni javascript:)
+    if (!/^https:\/\//i.test(url) && !/^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?\//i.test(url)) {
+      throw new Error('Seules les URL https (ou localhost) sont autorisées.')
+    }
+    await startProcess(url)
+    return `Navigateur ouvert sur ${url}`
+  }
   if (name === 'open_app' || name === 'exec' || name === 'services' || name === 'launch') {
     const asked = String(args.app || args.name || args.query || args.text || '')
+    // URL collée → navigateur
+    if (/^https?:\/\//i.test(asked.trim())) {
+      await startProcess(asked.trim())
+      return `Navigateur ouvert sur ${asked.trim()}`
+    }
     // Si la phrase contient une action in-app, basculer
     const control = parseAppControl(asked)
     if (control?.app && control.query) return runAppControl(control)
@@ -554,6 +574,7 @@ export function desktopLinkFields(provider: string) {
   const tools = provider === 'browser'
     ? [
         { name: 'open_app', description: 'Ouvrir Chrome ou Edge' },
+        { name: 'open_url', description: 'Ouvrir une URL dans le navigateur' },
         { name: 'status', description: 'Statut navigateur local' },
       ]
     : DESKTOP_TOOLS

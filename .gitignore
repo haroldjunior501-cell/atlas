@@ -10,3 +10,15 @@ data/
 *.gguf
 npm-debug.log*
 .DS_Store
+.tmp-*
+.tmp-*/
+**/.tmp-*/
+**/__pycache__/
+tools/avatar/blender-portable/
+tools/avatar/nebius/.terraform/
+apps/mobile/.tmp-export/
+scripts/_find_bad_quotes.py
+scripts/_en_voice_*.py
+scripts/_fix_voice_quotes.py
+*.mp4
+tools/avatar/capture-lip-*/

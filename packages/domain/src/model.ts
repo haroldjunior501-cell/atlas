@@ -68,6 +68,7 @@ export type ConnectorProvider =
   | 'cloudflare'
   | 'resellerclub'
   | 'devoid'
+  | 'evolus'
 
 export type ActionKind = 'analyze' | 'act'
 

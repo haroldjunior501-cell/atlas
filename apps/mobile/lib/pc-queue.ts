@@ -6,7 +6,7 @@ const KEY = 'atlas-pc-queue'
 export function needsComputer(text: string) {
   const heard = text.replace(/\s+/g, ' ').trim()
   if (heard.length > 280) return false
-  return /sur (le |l')?(pc|ordinateur)|ouvre (le |la |l'|les )?(fichier|dossier|document|chrome|edge|notepad|excel|word|spotify|appli)|lance .{0,24}(chrome|spotify|excel|word|notepad|l['’]appli)|ferme (chrome|l['’]appli|le fichier)|installe |g[eé]n[eè]re.{0,40}(?:vid[eé]o|film)|cr[eé]e.{0,30}(?:vid[eé]o|film)/i.test(heard)
+  return /sur (le |l')?(pc|ordinateur)|ouvre (le |la |l'|les )?(fichier|dossier|document|chrome|edge|notepad|excel|word|spotify|appli|site|navigateur)|lance .{0,24}(chrome|spotify|excel|word|notepad|l['’]appli|ztchosting)|ferme (chrome|l['’]appli|le fichier)|installe |g[eé]n[eè]re.{0,40}(?:vid[eé]o|film)|cr[eé]e.{0,30}(?:vid[eé]o|film)|ztchosting\.com|ouvre.{0,30}(mon |notre |le )?site/i.test(heard)
 }
 
 export function offlinePcReply(order: string) {

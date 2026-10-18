@@ -274,3 +274,157 @@ export async function generateLibraryImage(prompt: string, title?: string) {
   })
   return { item, summary: body.summary || 'Image générée et rangée dans la Bibliothèque.' }
 }
+
+export type ArtifactHint = 'auto' | 'report' | 'document' | 'invoice' | 'image' | 'brief' | 'code'
+
+function stamp() {
+  const d = new Date()
+  const p = (n: number) => String(n).padStart(2, '0')
+  return `${d.getFullYear()}${p(d.getMonth() + 1)}${p(d.getDate())}-${p(d.getHours())}${p(d.getMinutes())}`
+}
+
+/** Détecte une demande de génération d’image / visuel. */
+export function wantsLibraryImage(text: string) {
+  return /\b(g[eé]n[eè]re|cr[eé]e|fais|dessine|produis)\b.{0,40}\b(image|visuel|illustration|affiche|poster|banni[eè]re|logo|photo|picto)\b|\b(image|visuel|illustration|affiche)\b.{0,20}\b(pour|de|sur)\b/i.test(text)
+}
+
+function classifyArtifact(text: string, hint: ArtifactHint = 'auto'): Exclude<ArtifactHint, 'auto' | 'image'> {
+  if (hint !== 'auto' && hint !== 'image') return hint
+  if (/facture|invoice|re[cç]u|avoir\b|devis/i.test(text)) return 'invoice'
+  if (/rapport|bilan|compte[- ]rendu|brief(?:ing)?|status|statut/i.test(text)) return 'report'
+  if (/```|function |const |class |import /i.test(text)) return 'code'
+  if (/brief/i.test(text)) return 'brief'
+  return 'document'
+}
+
+const LABEL: Record<Exclude<ArtifactHint, 'auto' | 'image'>, string> = {
+  report: 'Rapport',
+  document: 'Document',
+  invoice: 'Facture',
+  brief: 'Briefing',
+  code: 'Code',
+}
+
+/** Enregistre un texte produit (rapport, doc, facture…) dans la Bibliothèque. */
+export async function addLibraryText(input: {
+  title?: string
+  body: string
+  hint?: ArtifactHint
+  author?: string
+  note?: string
+}): Promise<LibraryItem | null> {
+  const body = String(input.body || '').replace(/\s+$/g, '').trim()
+  if (body.length < 48) return null
+  const kind = classifyArtifact(`${input.title || ''} ${body} ${input.note || ''}`, input.hint || 'auto')
+  const who = input.author?.trim() || 'ATLAS'
+  const label = LABEL[kind]
+  const base = safeName(input.title?.trim() || `${label}-${who}`)
+  const name = `${base}-${stamp()}.md`
+  await ensureRoot()
+  const dest = `${ROOT}${Date.now()}-${name}`
+  const header = [
+    `# ${input.title?.trim() || label}`,
+    ``,
+    `- Auteur : ${who}`,
+    `- Type : ${label}`,
+    `- Date: ${new Date().toLocaleString('en-US')}`,
+    input.note ? `- Note : ${input.note}` : '',
+    ``,
+    `---`,
+    ``,
+    body,
+  ].filter((line) => line !== undefined).join('\n')
+  await FileSystem.writeAsStringAsync(dest, header, { encoding: FileSystem.EncodingType.UTF8 })
+  return addLibraryItem({
+    name,
+    kind: 'document',
+    mime: 'text/markdown',
+    size: header.length,
+    uri: dest,
+    text: header.slice(0, 60000),
+    source: 'atlas',
+    note: [label, who, input.note].filter(Boolean).join(' · '),
+    copy: false,
+  })
+}
+
+/** Enregistre une image data-URL (ex. Flare) dans la Bibliothèque. */
+export async function addLibraryDataImage(input: {
+  dataUrl: string
+  title?: string
+  prompt?: string
+  note?: string
+}): Promise<LibraryItem | null> {
+  const match = input.dataUrl.match(/^data:(image\/[\w+.-]+);base64,(.+)$/i)
+  if (!match) return null
+  await ensureRoot()
+  const ext = /png/i.test(match[1]) ? 'png' : /webp/i.test(match[1]) ? 'webp' : 'jpg'
+  const name = `${safeName(input.title || 'atlas-image')}-${stamp()}.${ext}`
+  const dest = `${ROOT}${Date.now()}-${name}`
+  await FileSystem.writeAsStringAsync(dest, match[2], { encoding: FileSystem.EncodingType.Base64 })
+  return addLibraryItem({
+    name,
+    kind: 'generated',
+    mime: match[1],
+    uri: dest,
+    prompt: input.prompt,
+    source: 'atlas',
+    note: input.note,
+    copy: false,
+  })
+}
+
+/**
+ * Range automatiquement ce qu’ATLAS / un agent vient de produire.
+ * Images (génération Studio), documents, rapports, factures, briefs.
+ */
+export async function saveAtlasArtifact(input: {
+  ask?: string
+  title?: string
+  body?: string
+  reply?: string
+  hint?: ArtifactHint
+  author?: string
+  note?: string
+  dataUrl?: string
+}): Promise<{ item: LibraryItem; summary: string } | null> {
+  const ask = String(input.ask || '')
+  const written = String(input.body || input.reply || '').trim()
+
+  if (input.dataUrl?.startsWith('data:image')) {
+    const item = await addLibraryDataImage({
+      dataUrl: input.dataUrl,
+      title: input.title,
+      prompt: ask || input.note,
+      note: input.note || input.author,
+    })
+    if (item) return { item, summary: `Image rangée dans la Bibliothèque : ${item.name}` }
+  }
+
+  if (wantsLibraryImage(ask) && !input.dataUrl) {
+    try {
+      const made = await generateLibraryImage(ask, input.title)
+      return made
+    } catch {
+      /* tombe sur sauvegarde texte si dispo */
+    }
+  }
+
+  const hint = input.hint || (wantsLibraryImage(ask) ? 'document' : 'auto')
+  const force =
+    hint === 'report'
+    || hint === 'invoice'
+    || hint === 'brief'
+    || /rapport|facture|document|brief|bilan|compte[- ]rendu/i.test(`${ask} ${input.title || ''}`)
+  if (!force && written.length < 120) return null
+
+  const item = await addLibraryText({
+    title: input.title,
+    body: written,
+    hint,
+    author: input.author,
+    note: input.note,
+  })
+  if (!item) return null
+  return { item, summary: `Enregistré dans la Bibliothèque : ${item.name}` }
+}

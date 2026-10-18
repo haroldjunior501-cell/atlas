@@ -27,12 +27,12 @@ export interface ConnectAgent {
 }
 
 const FEATURED = [
-  'gmail', 'outlook', 'google_calendar', 'machine', 'filesystem',
-  'notion', 'slack', 'github', 'google_drive', 'teams', 'discord', 'resend',
+  'ztc_core', 'fossbilling', 'whm', 'cloudflare', 'resellerclub', 'devoid',
+  'gmail', 'github', 'stripe', 'notion',
 ]
 const ADVANCED = new Set(['n8n', 'mcp', 'browser'])
 const GROUPS: ConnectorCategory[] = [
-  'communication', 'calendar', 'documents', 'development', 'business', 'design', 'commerce', 'automation', 'search', 'machine',
+  'hosting', 'communication', 'calendar', 'documents', 'development', 'business', 'automation', 'search', 'machine',
 ]
 
 const ACCENT: Record<string, string> = {
@@ -58,6 +58,7 @@ type FilterId = 'all' | ConnectorCategory
 
 const FILTERS: Array<{ id: FilterId; label: string }> = [
   { id: 'all', label: 'Toutes' },
+  { id: 'hosting', label: 'Hébergement' },
   { id: 'communication', label: 'Communication' },
   { id: 'calendar', label: 'Calendrier' },
   { id: 'documents', label: 'Documents' },
@@ -114,7 +115,11 @@ export function ConnectPanel({
   const [filter, setFilter] = useState<FilterId>('all')
   const [sort, setSort] = useState<'popular' | 'az' | 'status'>('popular')
 
-  const catalog = CONNECTOR_CATALOG.filter((item) => advanced || !ADVANCED.has(item.provider))
+  const catalog = CONNECTOR_CATALOG.filter((item) => {
+    if (!advanced && ADVANCED.has(item.provider)) return false
+    if (!advanced && (item.category === 'design' || item.category === 'commerce')) return false
+    return true
+  })
   const featured = FEATURED.map((provider) => catalog.find((item) => item.provider === provider)).filter(Boolean) as typeof CONNECTOR_CATALOG
   const extra = catalog.filter((item) => !FEATURED.includes(item.provider))
 

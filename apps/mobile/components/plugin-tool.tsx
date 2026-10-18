@@ -117,7 +117,7 @@ export function PluginToolView({
             ))}
           </ScrollView>
 
-          {status && status !== 'Je réfléchis.' ? (
+          {status && status !== 'Thinking…' ? (
             <View style={styles.result}>
               <Text style={styles.resultLabel}>Résultat</Text>
               <Text style={styles.resultText}>{status}</Text>

@@ -10,7 +10,7 @@ export class MootionClient {
     private readonly token: string,
   ) {}
 
-  async createTextToVideo(prompt: string, language = 'fr-FR'): Promise<string> {
+  async createTextToVideo(prompt: string, language = 'en-US'): Promise<string> {
     const response = await fetch(`${this.baseUrl}/api/v1/text2video`, {
       method: 'POST',
       headers: {

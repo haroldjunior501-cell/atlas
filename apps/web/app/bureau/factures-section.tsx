@@ -173,6 +173,30 @@ export function FacturesSection({
 
   const filtered = query || statuses.length || room !== 'all' || agent !== 'all' || period !== 'all'
 
+  if (!ops.records.length) {
+    return (
+      <div className={styles.wrap} style={{ ['--accent' as string]: accent }}>
+        <div className={styles.atlas}>
+          <div className={styles.atlasHead}>
+            <span className={styles.atlasMark} aria-hidden>
+              <img src="/brand/atlas-mark.svg" alt="" width={22} height={22} />
+            </span>
+            <div>
+              <strong>Facturation produit</strong>
+              <small>Aucune facture FOSSBilling branchée en lecture. ATLAS n’invente pas de montants — catalogue live et missions Ledger seulement.</small>
+            </div>
+          </div>
+        </div>
+        <div className={styles.panel}>
+          <footer className={styles.footer}>
+            <span>0 document · données produit uniquement (pas de simulation)</span>
+            <strong>—</strong>
+          </footer>
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div className={styles.wrap} style={{ ['--accent' as string]: accent }}>
       <div className={styles.cards}>
@@ -185,7 +209,9 @@ export function FacturesSection({
 
       <div className={styles.atlas}>
         <div className={styles.atlasHead}>
-          <span className={styles.atlasMark}>A</span>
+          <span className={styles.atlasMark} aria-hidden>
+            <img src="/brand/atlas-mark.svg" alt="" width={22} height={22} />
+          </span>
           <div>
             <strong>ATLAS orchestre la facturation</strong>
             <small>{ops.atlas.summary}</small>
@@ -282,7 +308,7 @@ export function FacturesSection({
         </div>
 
         <footer className={styles.footer}>
-          <span>{rows.length} sur {ops.records.length} documents{ops.simulated ? ' · données de gestion simulées par ATLAS' : ''}</span>
+          <span>{rows.length} sur {ops.records.length} documents{ops.simulated ? '' : ' · live'}</span>
           <strong>Total affiché {formatChf(sum(rows))}</strong>
         </footer>
       </div>

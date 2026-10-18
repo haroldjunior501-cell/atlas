@@ -1,6 +1,8 @@
 import { LinearGradient } from 'expo-linear-gradient'
 import { router } from 'expo-router'
+import { useEffect, useState } from 'react'
 import {
+  ActivityIndicator,
   Image,
   Pressable,
   StyleSheet,
@@ -10,12 +12,42 @@ import {
 } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { AtlasMark } from '../components/atlas-mark'
+import { readSession } from '../lib/session'
 import { brandGradient, colors } from '../lib/theme'
 
 export default function WelcomeScreen() {
   const { height } = useWindowDimensions()
   const earthH = Math.min(height * 0.42, 380)
   const brandOffset = Math.round(height * 0.11)
+  const [checking, setChecking] = useState(true)
+
+  useEffect(() => {
+    let live = true
+    void (async () => {
+      const session = await readSession()
+      if (!live) return
+      if (session?.id) {
+        router.replace('/home')
+        return
+      }
+      setChecking(false)
+    })()
+    return () => { live = false }
+  }, [])
+
+  if (checking) {
+    return (
+      <View style={[styles.root, styles.boot]}>
+        <LinearGradient
+          colors={[colors.bg, colors.bg, '#020205']}
+          locations={[0, 0.45, 1]}
+          style={StyleSheet.absoluteFill}
+        />
+        <AtlasMark size={64} />
+        <ActivityIndicator color={colors.brandHot} style={{ marginTop: 20 }} />
+      </View>
+    )
+  }
 
   return (
     <View style={styles.root}>
@@ -89,6 +121,7 @@ export default function WelcomeScreen() {
 
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: colors.bg },
+  boot: { alignItems: 'center', justifyContent: 'center' },
   safe: {
     flex: 1,
     paddingHorizontal: 28,
