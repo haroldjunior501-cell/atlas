@@ -37,6 +37,11 @@ const nextConfig: NextConfig = {
     NEXT_PUBLIC_ATLAS_GATEWAY_URL: process.env.NEXT_PUBLIC_ATLAS_GATEWAY_URL,
   },
   transpilePackages: ['@atlas/domain', '@atlas/contracts', '@mkkellogg/gaussian-splats-3d'],
+  // Same public host for Studio + /v1 (gateway) behind one Cloudflare hostname.
+  async rewrites() {
+    const gateway = (process.env.ATLAS_GATEWAY_INTERNAL || 'http://127.0.0.1:4000').replace(/\/$/, '')
+    return [{ source: '/v1/:path*', destination: `${gateway}/v1/:path*` }]
+  },
 }
 
 export default nextConfig

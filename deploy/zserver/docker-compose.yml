@@ -1,0 +1,54 @@
+# ATLAS Studio on zserver (always-on). Cloudflare tunnel should point atlast.strimetv.site → host:3000
+services:
+  atlas-web:
+    build:
+      context: ../..
+      dockerfile: deploy/zserver/Dockerfile.web
+      args:
+        NEXT_PUBLIC_APP_URL: https://atlast.strimetv.site
+        # Browser calls same host; Next proxies /v1 to gateway below when configured.
+        NEXT_PUBLIC_ATLAS_GATEWAY_URL: https://atlast.strimetv.site
+    image: atlas-web:zserver
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:3000:3000"
+    env_file:
+      - ./atlas.env
+    environment:
+      PORT: "3000"
+      NEXT_PUBLIC_APP_URL: https://atlast.strimetv.site
+      NEXT_PUBLIC_ATLAS_GATEWAY_URL: https://atlast.strimetv.site
+      ATLAS_OAUTH_ORIGIN: https://atlast.strimetv.site
+      ATLAS_GATEWAY_INTERNAL: http://atlas-gateway:4000
+    depends_on:
+      - atlas-gateway
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 30s
+      timeout: 10s
+      start_period: 60s
+      retries: 5
+
+  atlas-gateway:
+    build:
+      context: ../..
+      dockerfile: Dockerfile
+    image: atlas-gateway:zserver
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:4000:4000"
+    env_file:
+      - ./atlas.env
+    environment:
+      PORT: "4000"
+
+  # Optional: run the same CF tunnel token on zserver so atlast survives PC shutdown.
+  # Enable with: docker compose --profile tunnel up -d
+  cloudflared-atlas:
+    profiles: ["tunnel"]
+    image: cloudflare/cloudflared:2026.3.0
+    restart: unless-stopped
+    command: ["tunnel", "--no-autoupdate", "run", "--token", "${ATLAS_CLOUDFLARED_TOKEN}"]
+    depends_on:
+      atlas-web:
+        condition: service_healthy
