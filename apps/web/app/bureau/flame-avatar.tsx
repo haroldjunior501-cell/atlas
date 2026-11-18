@@ -270,9 +270,16 @@ export function FlameAvatar({
               loader.parse(buffer, '', resolve, reject)
             }),
         )
+    const __atlasFlameLoadTimeout = /* ATLAS_FLAME_LOAD_TIMEOUT */ window.setTimeout(() => {
+      if (!cancelled) errorRef.current?.()
+    }, 20000)
     Promise.all([loadMesh, textures.loadAsync(SPLATTING_ASSET.flameAlbedoUrl).catch(() => null)])
-      .then(([gltf, map]) => applyModel(gltf, map))
+      .then(([gltf, map]) => {
+        window.clearTimeout(__atlasFlameLoadTimeout)
+        applyModel(gltf, map)
+      })
       .catch(() => {
+        window.clearTimeout(__atlasFlameLoadTimeout)
         if (!cancelled) errorRef.current?.()
       })
 
