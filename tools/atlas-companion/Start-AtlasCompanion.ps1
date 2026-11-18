@@ -1,19 +1,19 @@
-<#
+﻿<#
 .SYNOPSIS
   ATLAS Companion — appelle Atlas depuis n'importe quelle app Windows.
 
 .DESCRIPTION
   - Raccourci global : Ctrl+Shift+A
-  - Ouvre / focus une fenêtre Edge "app" sur http://localhost:3000/overlay
-  - Icône dans la barre des tâches (NotifyIcon)
+  - Ouvre / focus une fenetre Edge "app" sur https://atlast.strimetv.site/overlay
+  - Icone dans la barre des taches (NotifyIcon)
 
 .NOTES
-  Prérequis : `npm run dev:web` (Atlas sur localhost:3000).
-  Lancer :  powershell -ExecutionPolicy Bypass -File tools/atlas-companion/Start-AtlasCompanion.ps1
+  Par defaut cible la prod publique. Pour le dev local :
+  powershell -File tools/atlas-companion/Start-AtlasCompanion.ps1 -AtlasUrl http://localhost:3000/overlay
 #>
 
 param(
-  [string]$AtlasUrl = 'http://localhost:3000/overlay',
+  [string]$AtlasUrl = 'https://atlast.strimetv.site/overlay',
   [string]$HotkeyLabel = 'Ctrl+Shift+A'
 )
 
@@ -21,7 +21,7 @@ $ErrorActionPreference = 'Stop'
 Add-Type -AssemblyName System.Windows.Forms
 Add-Type -AssemblyName System.Drawing
 
-# Win32 : raccourci global + focus fenêtre
+# Win32 : raccourci global + focus fenetre
 Add-Type @"
 using System;
 using System.Runtime.InteropServices;
@@ -43,7 +43,7 @@ public static class AtlasNative {
 
 function Test-AtlasUp {
   try {
-    $r = Invoke-WebRequest -Uri 'http://localhost:3000/overlay' -UseBasicParsing -TimeoutSec 2
+    $r = Invoke-WebRequest -Uri $AtlasUrl -UseBasicParsing -TimeoutSec 5
     return $r.StatusCode -ge 200
   } catch {
     return $false
@@ -69,9 +69,9 @@ function Start-AtlasOverlay {
     return
   }
 
-  # Cherche une fenêtre déjà ouverte sur /overlay
+  # Cherche une fenetre deja ouverte sur /overlay
   $existing = Get-Process -Name msedge, chrome -ErrorAction SilentlyContinue |
-    Where-Object { $_.MainWindowTitle -match 'ATLAS|overlay|localhost:3000' -and $_.MainWindowHandle -ne 0 } |
+    Where-Object { $_.MainWindowTitle -match 'ATLAS|overlay|atlast.strimetv.site|localhost:3000' -and $_.MainWindowHandle -ne 0 } |
     Select-Object -First 1
 
   if ($existing) {
@@ -93,7 +93,7 @@ function Start-AtlasOverlay {
 
 if (-not (Test-AtlasUp)) {
   [System.Windows.Forms.MessageBox]::Show(
-    "ATLAS n'est pas joignable sur localhost:3000.`nLance d'abord : npm run dev:web`npuis relance le Companion.",
+    "ATLAS n'est pas joignable sur:`n$AtlasUrl`nVerifiez le site / le tunnel, puis relancez le Companion.",
     'ATLAS Companion',
     'OK',
     'Warning'
@@ -127,7 +127,7 @@ $tray.add_DoubleClick({ Start-AtlasOverlay })
 # Ctrl+Shift+A
 $ok = [AtlasNative]::RegisterHotKey($form.Handle, 1, [AtlasNative]::MOD_CONTROL -bor [AtlasNative]::MOD_SHIFT, 0x41)
 if (-not $ok) {
-  $tray.ShowBalloonTip(4000, 'ATLAS Companion', "Impossible d'enregistrer $HotkeyLabel (déjà pris ?).", 'Warning')
+  $tray.ShowBalloonTip(4000, 'ATLAS Companion', "Impossible d'enregistrer $HotkeyLabel (deja pris ?).", 'Warning')
 } else {
   $tray.ShowBalloonTip(3500, 'ATLAS Companion', "Pret. Appuie sur $HotkeyLabel partout pour parler a Atlas.", 'Info')
 }
@@ -141,11 +141,6 @@ $form.add_FormClosing({
   [void][AtlasNative]::UnregisterHotKey($form.Handle, 1)
   $tray.Visible = $false
 })
-
-# Boucle messages pour WM_HOTKEY
-$wndProc = {
-  # Handled via Application.AddMessageFilter below
-}
 
 Add-Type @"
 using System;
