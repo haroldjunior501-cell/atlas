@@ -104,9 +104,9 @@ export const SPLATTING_ASSET = {
   splatUrl: '/avatars/atlas.splat',
   /**
    * Lightweight mesh (textures stripped) served as .gltf+.bin so Cloudflare can deliver it.
-   * Skin color comes from flameAlbedoUrl.
+   * Prefer embedded albedo inside the full/before-strip GLB (real face image).
    */
-  flameMeshUrl: '/avatars/atlas-flame.glb',
+  flameMeshUrl: '/avatars/atlas-flame.before-strip.glb',
   /** AlbedoMM mean diffuse — separate PNG (~small) loads reliably through the tunnel. */
   flameAlbedoUrl: '/avatars/atlas-flame-albedo.png',
   /** Target look reference (portrait) kept for offline training / style. */

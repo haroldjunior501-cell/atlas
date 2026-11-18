@@ -183,12 +183,8 @@ export function FlameAvatar({
         mat.metalness = 0
         mat.roughness = Math.min(0.55, Math.max(0.32, mat.roughness || 0.42))
         mat.side = THREE.FrontSide
-        if (map) {
-          map.colorSpace = THREE.SRGBColorSpace
-          map.flipY = false
-          map.needsUpdate = true
-          mat.map = map
-        } else if (mat.map) {
+        // Always preserve embedded GLB albedo (the real face image).
+        if (mat.map) {
           mat.map.colorSpace = THREE.SRGBColorSpace
           mat.map.flipY = false
           mat.map.needsUpdate = true
@@ -234,7 +230,15 @@ export function FlameAvatar({
       camera.lookAt(0, 0.04, 0)
     }
 
-    const applyModel = (gltf: Awaited<ReturnType<GLTFLoader['loadAsync']>>, map?: THREE.Texture | null) => {
+    // Restore real embedded face albedo from the full FLAME GLB.
+    // External PNG / lite mesh stripped that texture and blotched the cheeks/jaw.
+    const loader = new GLTFLoader()
+    const meshUrl = SPLATTING_ASSET.flameMeshUrl
+    const flameLoadTimeout = window.setTimeout(() => {
+      if (!cancelled) errorRef.current?.()
+    }, 25000)
+    const onGlb = (gltf: Awaited<ReturnType<GLTFLoader['loadAsync']>>) => {
+      window.clearTimeout(flameLoadTimeout)
       if (cancelled) return
       const model = gltf.scene
       model.traverse((obj) => {
@@ -251,37 +255,30 @@ export function FlameAvatar({
           if (typeof dict.Pose2 === 'number') pose2Index = dict.Pose2
           if (typeof dict.Pose3 === 'number') pose3Index = dict.Pose3
         }
-        // Mesh-only GLB (CF-friendly size) + separate albedo PNG.
-        tuneSkinMaterial(obj, map)
+        // Keep embedded GLB albedo — do not overwrite with external PNG.
+        tuneSkinMaterial(obj)
       })
       root.add(model)
       frameModel(model)
       readyRef.current?.()
     }
-
-    const loader = new GLTFLoader()
-    const textures = new THREE.TextureLoader()
-    const meshUrl = SPLATTING_ASSET.flameMeshUrl
-    const loadMesh = meshUrl.endsWith('.gltf')
-      ? loader.loadAsync(meshUrl)
-      : loadFlameGlbBuffer(meshUrl).then(
+    const onGlbError = () => {
+      window.clearTimeout(flameLoadTimeout)
+      if (!cancelled) errorRef.current?.()
+    }
+    if (meshUrl.endsWith('.gltf')) {
+      loader.load(meshUrl, onGlb, undefined, onGlbError)
+    } else {
+      loadFlameGlbBuffer(meshUrl)
+        .then(
           (buffer) =>
             new Promise<Awaited<ReturnType<GLTFLoader['loadAsync']>>>((resolve, reject) => {
               loader.parse(buffer, '', resolve, reject)
             }),
         )
-    const __atlasFlameLoadTimeout = /* ATLAS_FLAME_LOAD_TIMEOUT */ window.setTimeout(() => {
-      if (!cancelled) errorRef.current?.()
-    }, 20000)
-    Promise.all([loadMesh, textures.loadAsync(SPLATTING_ASSET.flameAlbedoUrl).catch(() => null)])
-      .then(([gltf, map]) => {
-        window.clearTimeout(__atlasFlameLoadTimeout)
-        applyModel(gltf, map)
-      })
-      .catch(() => {
-        window.clearTimeout(__atlasFlameLoadTimeout)
-        if (!cancelled) errorRef.current?.()
-      })
+        .then(onGlb)
+        .catch(onGlbError)
+    }
 
     api.current = {
       setPose: (next) => { pose = next },
