@@ -82,7 +82,8 @@
 }
 
 .heroBootVisible {
-  opacity: 1;
+  opacity: 0.35;
+  filter: blur(1px);
 }
 
 .heroLive {

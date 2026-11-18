@@ -230,15 +230,7 @@ export function FlameAvatar({
       camera.lookAt(0, 0.04, 0)
     }
 
-    // Restore real embedded face albedo from the full FLAME GLB.
-    // External PNG / lite mesh stripped that texture and blotched the cheeks/jaw.
-    const loader = new GLTFLoader()
-    const meshUrl = SPLATTING_ASSET.flameMeshUrl
-    const flameLoadTimeout = window.setTimeout(() => {
-      if (!cancelled) errorRef.current?.()
-    }, 25000)
-    const onGlb = (gltf: Awaited<ReturnType<GLTFLoader['loadAsync']>>) => {
-      window.clearTimeout(flameLoadTimeout)
+    const applyModel = (gltf: Awaited<ReturnType<GLTFLoader['loadAsync']>>) => {
       if (cancelled) return
       const model = gltf.scene
       model.traverse((obj) => {
@@ -262,23 +254,49 @@ export function FlameAvatar({
       frameModel(model)
       readyRef.current?.()
     }
-    const onGlbError = () => {
-      window.clearTimeout(flameLoadTimeout)
-      if (!cancelled) errorRef.current?.()
+
+    const loader = new GLTFLoader()
+    const meshUrl = SPLATTING_ASSET.flameMeshUrl
+    let settled = false
+    const fail = () => {
+      if (settled || cancelled) return
+      settled = true
+      errorRef.current?.()
     }
-    if (meshUrl.endsWith('.gltf')) {
-      loader.load(meshUrl, onGlb, undefined, onGlbError)
-    } else {
-      loadFlameGlbBuffer(meshUrl)
-        .then(
-          (buffer) =>
-            new Promise<Awaited<ReturnType<GLTFLoader['loadAsync']>>>((resolve, reject) => {
-              loader.parse(buffer, '', resolve, reject)
-            }),
-        )
-        .then(onGlb)
-        .catch(onGlbError)
+    const ok = (gltf: Awaited<ReturnType<GLTFLoader['loadAsync']>>) => {
+      if (settled || cancelled) return
+      settled = true
+      applyModel(gltf)
     }
+    const flameLoadTimeout = window.setTimeout(fail, 45000)
+
+    // 1) Direct same-origin load (best for embedded textures).
+    loader.load(
+      meshUrl,
+      (gltf) => {
+        window.clearTimeout(flameLoadTimeout)
+        ok(gltf)
+      },
+      undefined,
+      () => {
+        // 2) Fallback: ranged fetch + parse (Cloudflare sometimes breaks large GETs).
+        loadFlameGlbBuffer(meshUrl)
+          .then(
+            (buffer) =>
+              new Promise<Awaited<ReturnType<GLTFLoader['loadAsync']>>>((resolve, reject) => {
+                loader.parse(buffer, '', resolve, reject)
+              }),
+          )
+          .then((gltf) => {
+            window.clearTimeout(flameLoadTimeout)
+            ok(gltf)
+          })
+          .catch(() => {
+            window.clearTimeout(flameLoadTimeout)
+            fail()
+          })
+      },
+    )
 
     api.current = {
       setPose: (next) => { pose = next },

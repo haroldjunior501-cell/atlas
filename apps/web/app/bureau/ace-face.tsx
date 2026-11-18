@@ -20,14 +20,11 @@ export function AceFace({
   onError,
 }: {
   seed: string
-  /** URL portrait photorealiste (prioritaire sur le blob SVG). */
   face?: string | null
   speaking?: boolean
   listening?: boolean
   speech?: string
-  /** Maya-ACE / A2F clip (ARKit frames). Preferred over regenerating from text. */
   clip?: MayaAceClip | null
-  /** Shared lip-sync clock updated from TTS/audio (no React lag). */
   lipClock?: LipSyncClock | null
   size?: 'thumb' | 'card' | 'hero'
   label?: string
@@ -38,20 +35,9 @@ export function AceFace({
   const src = String(face || '').trim()
   const photo = src && !/dicebear|lorelei|avataaars|bottts|shapes|identicon/i.test(src) ? src : ''
   const [heroReady, setHeroReady] = useState(false)
-  const [heroFailed, setHeroFailed] = useState(false)
+  const [heroAttempt, setHeroAttempt] = useState(0)
 
   if (size === 'hero') {
-    if (heroFailed) {
-      return (
-        <MiniAvatar
-          look={look}
-          size="hero"
-          label={label || seed}
-          speaking={speaking}
-          listening={listening}
-        />
-      )
-    }
     return (
       <span className={styles.heroStack} aria-label={label || seed}>
         <span className={`${styles.heroBoot} ${heroReady ? '' : styles.heroBootVisible}`.trim()}>
@@ -59,6 +45,7 @@ export function AceFace({
         </span>
         <span className={`${styles.heroLive} ${heroReady ? styles.heroLiveVisible : ''}`.trim()}>
           <FlameAvatar
+            key={`flame-${heroAttempt}`}
             speaking={speaking}
             listening={listening}
             speech={speech}
@@ -70,8 +57,11 @@ export function AceFace({
               onReady?.()
             }}
             onError={() => {
-              setHeroFailed(true)
+              setHeroReady(false)
               onError?.()
+              window.setTimeout(() => {
+                setHeroAttempt((n) => (n < 2 ? n + 1 : n))
+              }, 1200)
             }}
           />
         </span>
