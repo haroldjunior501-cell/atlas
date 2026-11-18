@@ -1,41 +1,44 @@
-# ATLAS Companion — assistant global Windows
+﻿# ATLAS Companion — assistant global Windows
 
-Appelez **Atlas depuis n’importe quelle application** (Chrome, Word, Explorateur…).
+Appelez **Atlas depuis n'importe quelle application** (Chrome, Word, Explorateur…).
 
-## Prérequis
+## Prerequisites
 
-1. Atlas tourne en local :
-   ```bash
-   npm run dev:web
-   ```
+1. Atlas reachable (production by default):
+   - Public: `https://atlast.strimetv.site/overlay`
+   - Or local: `npm run dev:web` then pass `-AtlasUrl http://localhost:3000/overlay`
 2. Windows PowerShell
 
-## Lancer
+## Launch
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File tools/atlas-companion/Start-AtlasCompanion.ps1
 ```
 
-Ou depuis la racine du repo :
+Or from the repo root:
 
 ```bash
 npm run companion
 ```
 
-## Utilisation
+## Usage
 
-| Action | Effet |
+| Action | Effect |
 |---|---|
-| **Ctrl+Shift+A** | Ouvre / focus la fenêtre Atlas overlay |
-| Double-clic icône tray | Idem |
-| Clic droit tray → Quitter | Ferme le Companion |
+| **Ctrl+Shift+A** | Opens / focuses the Atlas overlay window |
+| Double-click tray icon | Same |
+| Right-click tray → Quitter | Closes the Companion |
 
-Dans l’overlay : **parlez** (clic sur le visage) ou **écrivez** un ordre — mêmes capacités que le bureau (fichiers, apps, mails reliés, recherche…).
+In the overlay: **speak** (click the face) or **type** a command — same capabilities as the studio (files, apps, linked mail, search…).
 
-Lien « Ouvrir le studio » → plateforme complète `/bureau`.
+Link "Ouvrir le studio" → full platform `/bureau`.
+
+## Production
+
+Default target is `https://atlast.strimetv.site/overlay` (public Cloudflare tunnel / zserver).
 
 ## Notes
 
-- Le Companion ne remplace pas `dev:web` : le cerveau Atlas reste sur `localhost:3000`.
-- Reliez **Ordinateur** / **Fichiers** une fois dans le studio pour les actions PC.
-- Si le raccourci est déjà pris par une autre app, changez-le dans le script (`0x41` = touche A).
+- For local-only work, launch with `-AtlasUrl http://localhost:3000/overlay`.
+- Link **Ordinateur** / **Fichiers** once in the studio for PC actions.
+- If the hotkey is already taken, change it in the script (`0x41` = key A).
