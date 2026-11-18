@@ -14,6 +14,7 @@ import {
   SPLATTING_ASSET,
   type ArkitPose,
 } from '@/lib/avatar-pipeline'
+import { loadFlameGlbBuffer } from '@/lib/load-flame-glb'
 import type { LipSyncClock } from '@/lib/lip-sync-clock'
 import { mayaAceClip, type MayaAceClip } from '@atlas/voice'
 import styles from './ace-face.module.css'
@@ -182,12 +183,8 @@ export function FlameAvatar({
         mat.metalness = 0
         mat.roughness = Math.min(0.55, Math.max(0.32, mat.roughness || 0.42))
         mat.side = THREE.FrontSide
-        if (map) {
-          map.colorSpace = THREE.SRGBColorSpace
-          map.flipY = false
-          map.needsUpdate = true
-          mat.map = map
-        } else if (mat.map) {
+        // Always preserve embedded GLB albedo (the real face image).
+        if (mat.map) {
           mat.map.colorSpace = THREE.SRGBColorSpace
           mat.map.flipY = false
           mat.map.needsUpdate = true
@@ -233,35 +230,71 @@ export function FlameAvatar({
       camera.lookAt(0, 0.04, 0)
     }
 
-    new GLTFLoader().load(
-      SPLATTING_ASSET.flameMeshUrl,
+    const applyModel = (gltf: Awaited<ReturnType<GLTFLoader['loadAsync']>>) => {
+      if (cancelled) return
+      const model = gltf.scene
+      model.traverse((obj) => {
+        if (!(obj instanceof THREE.Mesh)) return
+        if (/ico/i.test(obj.name) && !/flame/i.test(obj.name)) {
+          obj.visible = false
+          return
+        }
+        obj.frustumCulled = false
+        if (obj.morphTargetInfluences && obj.morphTargetDictionary && !morphLinks) {
+          boostJawMorphs(obj)
+          morphLinks = mapMorphs(obj)
+          const dict = obj.morphTargetDictionary
+          if (typeof dict.Pose2 === 'number') pose2Index = dict.Pose2
+          if (typeof dict.Pose3 === 'number') pose3Index = dict.Pose3
+        }
+        // Keep embedded GLB albedo — do not overwrite with external PNG.
+        tuneSkinMaterial(obj)
+      })
+      root.add(model)
+      frameModel(model)
+      readyRef.current?.()
+    }
+
+    const loader = new GLTFLoader()
+    const meshUrl = SPLATTING_ASSET.flameMeshUrl
+    let settled = false
+    const fail = () => {
+      if (settled || cancelled) return
+      settled = true
+      errorRef.current?.()
+    }
+    const ok = (gltf: Awaited<ReturnType<GLTFLoader['loadAsync']>>) => {
+      if (settled || cancelled) return
+      settled = true
+      applyModel(gltf)
+    }
+    const flameLoadTimeout = window.setTimeout(fail, 45000)
+
+    // 1) Direct same-origin load (best for embedded textures).
+    loader.load(
+      meshUrl,
       (gltf) => {
-        if (cancelled) return
-        const model = gltf.scene
-        model.traverse((obj) => {
-          if (!(obj instanceof THREE.Mesh)) return
-          if (/ico/i.test(obj.name) && !/flame/i.test(obj.name)) {
-            obj.visible = false
-            return
-          }
-          obj.frustumCulled = false
-          if (obj.morphTargetInfluences && obj.morphTargetDictionary && !morphLinks) {
-            boostJawMorphs(obj)
-            morphLinks = mapMorphs(obj)
-            const dict = obj.morphTargetDictionary
-            if (typeof dict.Pose2 === 'number') pose2Index = dict.Pose2
-            if (typeof dict.Pose3 === 'number') pose3Index = dict.Pose3
-          }
-          // Keep embedded GLB albedo — external PNG was blotching the cheeks/jaw
-          tuneSkinMaterial(obj)
-        })
-        root.add(model)
-        frameModel(model)
-        readyRef.current?.()
+        window.clearTimeout(flameLoadTimeout)
+        ok(gltf)
       },
       undefined,
       () => {
-        if (!cancelled) errorRef.current?.()
+        // 2) Fallback: ranged fetch + parse (Cloudflare sometimes breaks large GETs).
+        loadFlameGlbBuffer(meshUrl)
+          .then(
+            (buffer) =>
+              new Promise<Awaited<ReturnType<GLTFLoader['loadAsync']>>>((resolve, reject) => {
+                loader.parse(buffer, '', resolve, reject)
+              }),
+          )
+          .then((gltf) => {
+            window.clearTimeout(flameLoadTimeout)
+            ok(gltf)
+          })
+          .catch(() => {
+            window.clearTimeout(flameLoadTimeout)
+            fail()
+          })
       },
     )
 

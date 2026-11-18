@@ -1807,3 +1807,27 @@ a.ghost {
   line-height: 1.45;
 }
 
+
+
+/* atlas-assistant-platform-fix */
+.studio .welcome h1 {
+  font-size: clamp(34px, 3.8vw, 48px);
+  max-width: 760px;
+}
+
+.studio .voiceStage {
+  width: min(100%, 440px);
+  margin: 10px auto 18px;
+}
+
+.studio .voiceStage .reactor {
+  width: auto;
+  height: auto;
+  min-height: 0;
+  margin: 10px auto 6px;
+}
+
+.studio .overlayBody .voiceStage,
+.overlayBody .voiceStage {
+  width: min(100%, 420px);
+}

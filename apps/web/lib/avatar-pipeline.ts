@@ -102,8 +102,12 @@ export const SPLATTING_ASSET = {
    * Manual copy: tools/avatar/scripts/export_atlas_splat.ps1 -Source path\to\point_cloud.ply
    */
   splatUrl: '/avatars/atlas.splat',
-  flameMeshUrl: '/avatars/atlas-flame.glb',
-  /** AlbedoMM mean diffuse (also embedded in atlas-flame.glb). */
+  /**
+   * Lightweight mesh (textures stripped) served as .gltf+.bin so Cloudflare can deliver it.
+   * Prefer embedded albedo inside the full/before-strip GLB (real face image).
+   */
+  flameMeshUrl: '/avatars/atlas-flame.before-strip.glb',
+  /** AlbedoMM mean diffuse — separate PNG (~small) loads reliably through the tunnel. */
   flameAlbedoUrl: '/avatars/atlas-flame-albedo.png',
   /** Target look reference (portrait) kept for offline training / style. */
   targetPortraitUrl: '/avatars/atlas-target.png',
