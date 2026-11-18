@@ -14,6 +14,7 @@ import {
   SPLATTING_ASSET,
   type ArkitPose,
 } from '@/lib/avatar-pipeline'
+import { loadFlameGlbBuffer } from '@/lib/load-flame-glb'
 import type { LipSyncClock } from '@/lib/lip-sync-clock'
 import { mayaAceClip, type MayaAceClip } from '@atlas/voice'
 import styles from './ace-face.module.css'
@@ -233,37 +234,47 @@ export function FlameAvatar({
       camera.lookAt(0, 0.04, 0)
     }
 
-    new GLTFLoader().load(
-      SPLATTING_ASSET.flameMeshUrl,
-      (gltf) => {
-        if (cancelled) return
-        const model = gltf.scene
-        model.traverse((obj) => {
-          if (!(obj instanceof THREE.Mesh)) return
-          if (/ico/i.test(obj.name) && !/flame/i.test(obj.name)) {
-            obj.visible = false
-            return
-          }
-          obj.frustumCulled = false
-          if (obj.morphTargetInfluences && obj.morphTargetDictionary && !morphLinks) {
-            boostJawMorphs(obj)
-            morphLinks = mapMorphs(obj)
-            const dict = obj.morphTargetDictionary
-            if (typeof dict.Pose2 === 'number') pose2Index = dict.Pose2
-            if (typeof dict.Pose3 === 'number') pose3Index = dict.Pose3
-          }
-          // Keep embedded GLB albedo — external PNG was blotching the cheeks/jaw
-          tuneSkinMaterial(obj)
-        })
-        root.add(model)
-        frameModel(model)
-        readyRef.current?.()
-      },
-      undefined,
-      () => {
+    const applyModel = (gltf: Awaited<ReturnType<GLTFLoader['loadAsync']>>, map?: THREE.Texture | null) => {
+      if (cancelled) return
+      const model = gltf.scene
+      model.traverse((obj) => {
+        if (!(obj instanceof THREE.Mesh)) return
+        if (/ico/i.test(obj.name) && !/flame/i.test(obj.name)) {
+          obj.visible = false
+          return
+        }
+        obj.frustumCulled = false
+        if (obj.morphTargetInfluences && obj.morphTargetDictionary && !morphLinks) {
+          boostJawMorphs(obj)
+          morphLinks = mapMorphs(obj)
+          const dict = obj.morphTargetDictionary
+          if (typeof dict.Pose2 === 'number') pose2Index = dict.Pose2
+          if (typeof dict.Pose3 === 'number') pose3Index = dict.Pose3
+        }
+        // Mesh-only GLB (CF-friendly size) + separate albedo PNG.
+        tuneSkinMaterial(obj, map)
+      })
+      root.add(model)
+      frameModel(model)
+      readyRef.current?.()
+    }
+
+    const loader = new GLTFLoader()
+    const textures = new THREE.TextureLoader()
+    const meshUrl = SPLATTING_ASSET.flameMeshUrl
+    const loadMesh = meshUrl.endsWith('.gltf')
+      ? loader.loadAsync(meshUrl)
+      : loadFlameGlbBuffer(meshUrl).then(
+          (buffer) =>
+            new Promise<Awaited<ReturnType<GLTFLoader['loadAsync']>>>((resolve, reject) => {
+              loader.parse(buffer, '', resolve, reject)
+            }),
+        )
+    Promise.all([loadMesh, textures.loadAsync(SPLATTING_ASSET.flameAlbedoUrl).catch(() => null)])
+      .then(([gltf, map]) => applyModel(gltf, map))
+      .catch(() => {
         if (!cancelled) errorRef.current?.()
-      },
-    )
+      })
 
     api.current = {
       setPose: (next) => { pose = next },
