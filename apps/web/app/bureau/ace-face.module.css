@@ -49,8 +49,8 @@
 }
 
 .hero {
-  width: min(340px, 78vw);
-  height: min(420px, 60vh);
+  width: min(300px, 70vw);
+  height: min(360px, 48vh);
   margin: 0 auto;
   border-radius: 0;
   background: transparent;
@@ -62,8 +62,8 @@
   position: relative;
   display: grid;
   place-items: center;
-  width: min(340px, 78vw);
-  height: min(420px, 60vh);
+  width: min(300px, 70vw);
+  height: min(360px, 48vh);
   margin: 0 auto;
 }
 
@@ -78,9 +78,19 @@
 .heroBoot {
   opacity: 0;
   pointer-events: none;
+  transition: opacity 180ms ease;
+}
+
+.heroBootVisible {
+  opacity: 1;
 }
 
 .heroLive {
+  opacity: 0;
+  transition: opacity 220ms ease;
+}
+
+.heroLiveVisible {
   opacity: 1;
 }
 
@@ -110,9 +120,10 @@
 }
 
 @media (max-width: 720px) {
-  .hero {
-    width: min(280px, 86vw);
-    height: min(350px, 52vh);
+  .hero,
+  .heroStack {
+    width: min(260px, 84vw);
+    height: min(320px, 46vh);
     border-radius: 0;
   }
 }
